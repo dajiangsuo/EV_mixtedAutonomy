@@ -1,5 +1,5 @@
 """Environment for training the acceleration behavior of vehicles in a ring."""
-
+import traci
 from flow.core import rewards
 from flow.envs.base import Env
 
@@ -26,6 +26,7 @@ ADDITIONAL_ENV_PARAMS = {
 
 }
 
+MAX_LANES = 2
 
 class AccelEnv_forEV(Env):
     """Fully observed acceleration environment.
@@ -117,7 +118,9 @@ class AccelEnv_forEV(Env):
         
         """The observation consists of the speeds and bumper-to-bumper headways of
         the vehicles immediately preceding and following autonomous vehicle, the speed
-        of the emergency vehicle, as well as the ego speed of the autonomous vehicles."""
+        and position (i.e., distance to intersection) of the emergency vehicle, 
+        as well as the position (i.e., distance to intersection) ego speed of the autonomous 
+        vehicles."""
         #self.obs_var_labels = ['Velocity', 'Absolute_pos']
         """return Box(
             low=0,
@@ -125,7 +128,7 @@ class AccelEnv_forEV(Env):
             shape=(2 * self.initial_vehicles.num_vehicles, ),
             dtype=np.float32)"""
 
-        return Box(low=-1, high=1, shape=(6 * self.num_rl, ), dtype=np.float32)
+        return Box(low=-1, high=1, shape=(8 * self.num_rl, ), dtype=np.float32)
 
     def _apply_rl_actions(self, rl_actions):
         """See class definition."""
@@ -153,16 +156,42 @@ class AccelEnv_forEV(Env):
         ev_string = 'emergency'
         ev_speed = -1001
 
+        """
+        total_speed = 0
+        n = 0
+
+        #　Get the speed of all vehicles in the same edge 
         for veh_id in self.k.vehicle.get_ids():
             if ev_string in veh_id:
                 ev_speed = self.k.vehicle.get_speed(veh_id)
-                #print("ev id is:",veh_id)
-                break
+            elif self.k.vehicle.get_edge(veh_id) == 'right0_0':
+                total_speed += self.k.vehicle.get_speed(veh_id)
+                n += 1
+                #print("ev id is:",veh_id)"""
+
+        # Get the average speed of the edge the RL vehicle is in
+        # per edge data (average speed, density
+        avg_spd_edge = 0
+        #edge = self.k.vehicle.get_edge(self.rl_veh[0])
+        edge = 'right0_0'
+        veh_ids = self.k.vehicle.get_ids_by_edge(edge)
+        if len(veh_ids) > 0:
+            avg_spd_edge = (sum(self.k.vehicle.get_speed(veh_ids)) /
+                         len(veh_ids)) #/ self.max_speed
+            #density = len(veh_ids) / self.k.network.edge_length(edge)
+        else:
+            avg_spd_edge = 0
+            
+    
+                
+    
         #return self.k.vehicle.get_speed(self.k.vehicle.get_ids())
         if ev_speed == -1001:
             print("ev_speed = -1001")
             ev_speed = 0
-        return ev_speed
+        
+        rewards = 0.8*ev_speed - 0.2*avg_spd_edge
+        return rewards
 
         #ev_speed = self.k.vehicle.get_speed('emergency_00.0')
         #return ev_speed
@@ -191,9 +220,66 @@ class AccelEnv_forEV(Env):
         #max_length = self.k.network.length()
 
 
-        observation = [0 for _ in range(6 * self.num_rl)]
+        observation = [0 for _ in range(8 * self.num_rl)]
         for i, rl_id in enumerate(self.rl_veh):
+            # rl vehicle data (absolute position, speed, lane index)
+            # get the edge and convert it to a number
+            
+            edge_num = self.k.vehicle.get_edge(rl_id)
+            if edge_num is None or edge_num == '' or edge_num[0] == ':':
+                #lane_group = -1
+                this_position = 0
+
+            elif edge_num == 'right0_0':
+                #edge_num = int(edge_num) / 2 # we only need to consider two edges
+                #lane_group = 1
+                #lane_pos = traci.vehicle.getLanePosition(rl_id)
+                lane_pos =  self.k.vehicle.get_position(rl_id)
+
+                lane_pos = 500 - lane_pos
+                if lane_pos < 10:
+                    lane_cell = 1
+                elif lane_pos < 20:
+                    lane_cell = 2
+                elif lane_pos < 30:
+                    lane_cell = 3
+                elif lane_pos < 40:
+                    lane_cell = 4
+                elif lane_pos < 50:
+                    lane_cell = 5
+                elif lane_pos < 60:
+                    lane_cell = 6 
+                elif lane_pos < 100:
+                    lane_cell = 7
+                elif lane_pos < 160:
+                    lane_cell = 8
+                elif lane_pos < 250:
+                    lane_cell = 9
+                elif lane_pos <= 500:
+                    lane_cell = 10
+
+                #lane_id = traci.vehicle.getLaneID(rl_id)
+                #lane_id = self.k.vehicle.get_lane(rl_id)
+                lane_index = self.k.vehicle.get_lane(rl_id)
+                if lane_index == 0: #'right0_0_0':
+                    this_position = lane_cell/20.0
+                else:
+                    this_position = (lane_cell+10.0)/20.0
+
+
+            else:
+                #lane_group = -1
+                this_position = 0
+
+            
+
             this_speed = self.k.vehicle.get_speed(rl_id)
+            if this_speed == -1001:
+                print("rl speed is:-1001")
+                this_speed = 0
+            #this_lane = self.k.vehicle.get_lane(veh_id) / MAX_LANES
+
+
             lead_id = self.k.vehicle.get_leader(rl_id)
             follower = self.k.vehicle.get_follower(rl_id)
 
@@ -224,22 +310,68 @@ class AccelEnv_forEV(Env):
 
             ev_string = 'emergency'
             ev_speed = -1001
+            ev_id = -1001
 
+            # find the id of EV
             for veh_id in self.k.vehicle.get_ids():
                 if ev_string in veh_id:
+                    ev_id = veh_id
                     ev_speed = self.k.vehicle.get_speed(veh_id)
                     print("ev id is:",veh_id)
                     break
-            if ev_speed == -1001:
-                ev_speed = max_speed
 
-            if this_speed == -1001:
-                print("rl speed is:-1001")
-                this_speed = 0
-                lead_speed = 0
-                follow_speed = 0
-                lead_head = 0
-                follow_head = 0
+            # get ev position as a cell number. If ev_id == -1001, return 0 as its position
+            if ev_id == -1001:
+                ev_position = 0
+            else:
+                edge_num_ev = self.k.vehicle.get_edge(ev_id)
+                if edge_num_ev is None or edge_num_ev == '' or edge_num_ev[0] == ':':
+                #lane_group = -1
+                    ev_position = 0
+
+                elif edge_num_ev == 'right0_0':
+                #edge_num = int(edge_num) / 2 # we only need to consider two edges
+                #lane_group = 1
+                    lane_pos = self.k.vehicle.get_position(ev_id)
+                    lane_pos = 500 - lane_pos
+                    if lane_pos < 10:
+                        lane_cell = 1
+                    elif lane_pos < 20:
+                        lane_cell = 2
+                    elif lane_pos < 30:
+                        lane_cell = 3
+                    elif lane_pos < 40:
+                        lane_cell = 4
+                    elif lane_pos < 50:
+                        lane_cell = 5
+                    elif lane_pos < 60:
+                        lane_cell = 6 
+                    elif lane_pos < 100:
+                        lane_cell = 7
+                    elif lane_pos < 160:
+                        lane_cell = 8
+                    elif lane_pos < 250:
+                        lane_cell = 9
+                    elif lane_pos <= 500:
+                        lane_cell = 10
+
+                #lane_id = traci.vehicle.getLaneID(rl_id)
+                    lane_index = self.k.vehicle.get_lane(ev_id)
+                #print("lane indx is:",lane_index)
+                    if lane_index == 0: #'right0_0_0':
+                        ev_position = lane_cell/20.0
+                    else:
+                        ev_position = (lane_cell+10.0)/20.0
+
+
+                else:
+                #lane_group = -1
+                    ev_position = 0
+
+
+            if ev_speed == -1001:
+                #print("ev speed is:-1001")
+                ev_speed = 0
                     
             #ev_speed = self.k.vehicle.get_speed('emergency_00.0')
             #print("the speed of ev is:",ev_speed)
@@ -250,13 +382,19 @@ class AccelEnv_forEV(Env):
             #nv_speed = self.k.vehicle.get_speed(id1)
             #print("the speed of"+id1+"normal is:",ev_speed)
 
-            observation[6 * i + 0] = this_speed / max_speed
-            observation[6 * i + 1] = (lead_speed - this_speed) / max_speed
-            observation[6 * i + 2] = lead_head / max_length
-            observation[6 * i + 3] = (this_speed - follow_speed) / max_speed
-            observation[6 * i + 4] = ev_speed / max_speed
-            observation[6 * i + 5] = follow_head / max_length
 
+
+            observation[8 * i + 0] = this_speed / max_speed
+            observation[8 * i + 1] = this_position
+
+            observation[8 * i + 2] = (lead_speed - this_speed) / max_speed
+            observation[8 * i + 3] = lead_head / max_length
+
+            observation[8 * i + 4] = (this_speed - follow_speed) / max_speed
+            observation[8 * i + 5] = follow_head / max_length
+
+            observation[8 * i + 6] = ev_speed / max_speed
+            observation[8 * i + 7] = ev_position
         return observation
 
     def additional_command(self):

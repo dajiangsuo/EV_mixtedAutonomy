@@ -28,9 +28,9 @@ RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 NUM_RL = [1, 13, 17][EXP_NUM]
 
 V_ENTER = 15
-INNER_LENGTH = 300
-LONG_LENGTH = 100
-SHORT_LENGTH = 300
+INNER_LENGTH = 500 #300
+LONG_LENGTH = 500 #100
+SHORT_LENGTH = 500 #300
 N_ROWS = 1
 N_COLUMNS = 1
 NUM_CARS_LEFT = 1
@@ -399,11 +399,11 @@ trials = run_experiments({
         "config": {
             **config
         },
-        "checkpoint_freq": 20,  # number of iterations between checkpoints
+        "checkpoint_freq": 10,  # number of iterations between checkpoints
         "checkpoint_at_end": True,  # generate a checkpoint at the end
         "max_failures": 999,
         "stop": {  # stopping conditions
-            "training_iteration": 300,  # number of iterations to stop after
+            "training_iteration": 50,  # number of iterations to stop after
         },
     },
 })
