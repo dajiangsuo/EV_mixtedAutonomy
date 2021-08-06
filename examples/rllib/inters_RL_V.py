@@ -11,7 +11,7 @@ from flow.networks import TrafficLightGridNetwork
 
 USE_INFLOWS = True
 # time horizon of a single rollout
-HORIZON = 200
+HORIZON = 110
 # number of rollouts per training iteration
 N_ROLLOUTS = 1
 # number of parallel workers
@@ -21,7 +21,7 @@ EXP_NUM = 0
 
 
 # inflow rate at the highway
-FLOW_RATE = 400
+FLOW_RATE = 2000
 # percent of autonomous vehicles
 RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
@@ -103,7 +103,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
             edge=outer_edges[i],
             #probability=0.25,
             vehs_per_hour=(1 - RL_PENETRATION) * FLOW_RATE,
-            departLane='free',
+            departLane='random',
             departSpeed=10)
             #number =3,
             #color = 'white')
@@ -123,16 +123,19 @@ def get_inflow_params(col_num, row_num, additional_net_params):
     #  Que. 1: which mode of departure we should choose for RL?
     #  Que. 2: the speed of the RL.
     edge_EV_enter = 'right0_0'
+    
+    
+
     inflow.add(
         veh_type='rl',
         edge=edge_EV_enter,
         #probability=0.25,
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 1, #"free",
-        departSpeed=10,
+        departSpeed=25,
+        begin=15,
         number = 1,
         name = 'rl')
-    
     
     inflow.add(
         veh_type='emergency',
@@ -140,11 +143,13 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         #probability=0.25,
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 0, #"free",
-        departSpeed=10,
+        departSpeed=25,
+        begin=30,
         number = 1,
         name = 'emergency')
         #color = 'green')
-    
+
+
     
     
         
@@ -207,7 +212,7 @@ vehicles.add(
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
         decel=7.5,  # avoid collisions at emergency stops
-        max_speed=V_ENTER,
+        max_speed=30,
         speed_mode="all_checks",
     ),
     #routing_controller=(GridRouter, {}),
@@ -229,7 +234,7 @@ vehicles.add(
         #speed_mode="all_checks",
     ),
     lane_change_params=SumoLaneChangeParams(
-        lane_change_mode="strategic",
+        lane_change_mode=1621,
     ),
     #routing_controller=(GridRouter, {}),
     #color = 'red',
@@ -355,7 +360,7 @@ from flow.utils.rllib import FlowParamsEncoder
 # number of parallel workers
 N_CPUS = 2
 # number of rollouts per training iteration
-N_ROLLOUTS = 1
+N_ROLLOUTS = 64
 
 ray.shutdown()
 ray.init(num_cpus=N_CPUS+1,object_store_memory=500 * 1024 * 1024)
@@ -399,11 +404,11 @@ trials = run_experiments({
         "config": {
             **config
         },
-        "checkpoint_freq": 10,  # number of iterations between checkpoints
+        "checkpoint_freq": 20,  # number of iterations between checkpoints
         "checkpoint_at_end": True,  # generate a checkpoint at the end
         "max_failures": 999,
         "stop": {  # stopping conditions
-            "training_iteration": 50,  # number of iterations to stop after
+            "training_iteration": 500,  # number of iterations to stop after
         },
     },
 })

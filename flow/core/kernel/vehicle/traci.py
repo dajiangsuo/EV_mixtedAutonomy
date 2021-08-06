@@ -994,12 +994,25 @@ class TraCIVehicle(KernelVehicle):
                 print('Error when updating rl vehicle colors:', e)
 
         # color vehicles white if not observed and cyan if observed
+
         for veh_id in self.get_human_ids():
+            
+            if veh_id.find("emergency") != -1:
+                
+                color = (0, 255, 0)
+                self.set_color(veh_id=veh_id, color=color)
+            else:
+                try:
+                    color = CYAN if veh_id in self.get_observed_ids() else WHITE
+                    self.set_color(veh_id=veh_id, color=color)
+                except (FatalTraCIError, TraCIException) as e:
+                    print('Error when updating human vehicle colors:', e)
+            """        
             try:
                 color = CYAN if veh_id in self.get_observed_ids() else WHITE
                 self.set_color(veh_id=veh_id, color=color)
             except (FatalTraCIError, TraCIException) as e:
-                print('Error when updating human vehicle colors:', e)
+                print('Error when updating human vehicle colors:', e)"""
 
         # clear the list of observed vehicles
         for veh_id in self.get_observed_ids():
