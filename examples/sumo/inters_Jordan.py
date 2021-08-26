@@ -3,7 +3,7 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, \
     InFlows, SumoCarFollowingParams
 from flow.core.params import VehicleParams
 from flow.core.params import TrafficLightParams, SumoLaneChangeParams
-from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController
+from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController,JordanController
 from flow.envs import TrafficLightGridPOEnv
 from flow.envs.rl_forEV_env import ADDITIONAL_ENV_PARAMS 
 from flow.envs import AccelEnv_forEV
@@ -127,7 +127,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
     
 
     inflow.add(
-        veh_type='rl',
+        veh_type='jordan',
         edge=edge_EV_enter,
         #probability=0.25,
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
@@ -135,7 +135,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         departSpeed=25,
         begin=15,
         number = 1,
-        name = 'rl')
+        name = 'jordan')
     
     inflow.add(
         veh_type='emergency',
@@ -206,8 +206,8 @@ vehicles.add(
     #num_vehicles=1)
 
 vehicles.add(
-    veh_id="rl",
-    acceleration_controller=(RLController, {}),
+    veh_id="jordan",
+    acceleration_controller=(JordanController, {}),
     #lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
@@ -229,12 +229,13 @@ vehicles.add(
     lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
+
         decel=7.5,  # avoid collisions at emergency stops
         max_speed=30,
         #speed_mode="all_checks",
     ),
     lane_change_params=SumoLaneChangeParams(
-        lane_change_mode=1621,
+        lane_change_mode=1621, # according to this tutorial, 1621 means having all lang
     ),
     #routing_controller=(GridRouter, {}),
     #color = 'red',
@@ -311,7 +312,7 @@ flow_params = dict(
     # sumo-related parameters (see flow.core.params.SumoParams)
     sim=SumoParams(
         sim_step=1,
-        render=False,
+        render=True,
         restart_instance=True,
     ),
 
@@ -404,11 +405,11 @@ trials = run_experiments({
         "config": {
             **config
         },
-        "checkpoint_freq": 20,  # number of iterations between checkpoints
+        "checkpoint_freq": 1,  # number of iterations between checkpoints
         "checkpoint_at_end": True,  # generate a checkpoint at the end
         "max_failures": 999,
         "stop": {  # stopping conditions
-            "training_iteration": 1000,  # number of iterations to stop after
+            "training_iteration": 1,  # number of iterations to stop after
         },
     },
 })

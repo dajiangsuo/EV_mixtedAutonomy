@@ -499,3 +499,131 @@ class SimCarFollowingController(BaseController):
     def get_accel(self, env):
         """See parent class."""
         return None
+
+
+class JordanController(BaseController):
+    """The controller for splitting platoon near intersection to assistant the manuver (i.e., lane change) of emergency vehicle.
+
+    Implamented by Dajiang Suo based on the work by Jordan et al., see:
+    Jordan et al. "Path Clearance for Emergency Vehicles Through the Use of Vehicle-to-Vehicle Communication." Transportation
+    Research Board (2013)
+
+    Usage
+    -----
+    See BaseController for usage example.
+
+    Attributes
+    ----------
+    veh_id : str
+        Vehicle ID for SUMO identification
+    car_following_params : flow.core.param.SumoCarFollowingParams
+        see parent class
+    w : float
+        the shockwave speed (for queue discharge)
+    v_ev: float
+        the desired speed of EV
+    v_N: float
+        the normal speed other vehicles (except RL and EV) travel
+    noise : float
+        std dev of normal perturbation to the acceleration (default: 0)
+    fail_safe : str
+        type of flow-imposed failsafe the vehicle should posses, defaults
+        to no failsafe (None)
+    """
+
+    def __init__(self,
+                 veh_id,
+                 time_delay=0.0,
+                 noise=0,
+                 fail_safe=None,
+                 car_following_params=None,
+                 w=19,
+                 v_ev=30,
+                 v_N=15):
+        """Instantiate an IDM controller."""
+        BaseController.__init__(
+            self,
+            veh_id,
+            car_following_params,
+            delay=time_delay,
+            fail_safe=fail_safe,
+            noise=noise)
+        self.w = w
+        self.v_ev = v_ev
+        self.v_N = v_N
+        # caculate x_L, the optimal position for platoon splitting
+
+
+    def get_accel(self, env):
+        """control the acceleration & deceleration of RL."""
+        # if the RL does not locate at the edge of right0_0, then we should judge wether the RL should decelerate or drive based on the krauss model
+
+
+        # Depending on whether RL locates at a position (x_a) further away or closer to the intersection compared to the optimal splitting
+        # point (x_L), we can devide the accel/decel strategy into two scenarios:
+        # scenario 1. x_a > x_L
+        # scenario 2. x_a < x_L
+
+        # get the current position and spd of the ego vehicle 
+
+        pos_abs =  env.k.vehicle.get_x_by_id(self.veh_id)
+        edge_num_rl = env.k.vehicle.get_edge(self.veh_id)
+        v = env.k.vehicle.get_speed(self.veh_id)
+        lead_id = env.k.vehicle.get_leader(self.veh_id)
+        v_lead = env.k.vehicle.get_speed(lead_id)
+        h = env.k.vehicle.get_headway(self.veh_id)
+
+        # deriving v_safe and v_desired based on the krauss model
+        # v_safe = v_lead + (minGap-v_lead*tao)/(v/decel+tao)
+        minGap=2.5
+        decel=7.5
+        tao = 1 # human reaction time
+        max_spd = 30
+        v_safe  = v_lead + (minGap-v_lead*tao)/(v/decel+tao)
+        v_desired = min(v_safe,v+1.5,max_spd)
+
+        # get ev status
+        ev_string = 'emergency'
+        ev_id = -1001
+        
+        for veh_id in env.k.vehicle.get_ids():
+            if ev_string in veh_id:
+                ev_id = veh_id
+                break
+
+        # if no ev, then follows what krauss model specifies
+        if ev_id == -1001:
+            #print("no ev found")
+            if lead_id is None or lead_id == '':
+                return max_spd
+            else:
+                v_desired
+
+
+        # when ev exists in the network, we would need to determine if both ev and rl are in the bottom edge and ev is further away from the stop line
+        #ev_pos =  env.k.vehicle.get_position(ev_id)
+        #d = 500 - ev_pos # ev_from_inter
+        ev_spd = env.k.vehicle.get_speed(ev_id)
+        edge_num_ev = env.k.vehicle.get_edge(ev_id)
+        ev_lane = env.k.vehicle.get_lane(ev_id)
+
+        # if both ev and RL stopped in a queue and if both locates at the bottom edge (i.e., right0_0)
+        if abs(v) < 1e-3 and abs(ev_spd) < 1e-3 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
+            ev_pos =  env.k.vehicle.get_position(ev_id)
+            d = 500 - ev_pos # ev_from_inter
+            pos_edge = env.k.vehicle.get_position(self.veh_id)
+            x_a = 500 - pos_edge
+
+            # derive the optimal position x_L
+            x_L = d*((1/self.w+1/self.v_ev)/(1/self.w+2/self.v_ev-self.v_N))
+
+            if x_a <= x_L:
+                return 0
+            else:
+                t_s = d/self.w + (d-x_L)/self.v_ev
+                t_a = x_a/self.w
+                return (x_a-x_L)/(t_s-t_a)
+
+    
+
+        return v_desired
