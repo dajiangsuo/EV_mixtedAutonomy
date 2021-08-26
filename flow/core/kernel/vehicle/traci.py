@@ -1001,6 +1001,8 @@ class TraCIVehicle(KernelVehicle):
                 
                 color = (0, 255, 0)
                 self.set_color(veh_id=veh_id, color=color)
+            elif: veh_id.find("jordan") != -1:
+                self.set_color(veh_id=veh_id, color=RED)
             else:
                 try:
                     color = CYAN if veh_id in self.get_observed_ids() else WHITE
