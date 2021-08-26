@@ -8,6 +8,7 @@ from flow.envs import TrafficLightGridPOEnv
 from flow.envs.rl_forEV_env import ADDITIONAL_ENV_PARAMS 
 from flow.envs import AccelEnv_forEV
 from flow.networks import TrafficLightGridNetwork
+from flow.core.experiment import Experiment
 
 USE_INFLOWS = True
 # time horizon of a single rollout
@@ -289,11 +290,17 @@ phases = [{
 }]
 tl_logic.add("center0", phases=phases, programID=1)
 
+env_params = EnvParams(additional_params=ADDITIONAL_ENV_PARAMS)
+
 if USE_INFLOWS:
     initial_config, net_params = get_inflow_params(
         col_num=N_COLUMNS,
         row_num=N_ROWS,
         additional_net_params=additional_net_params)
+
+#sim_params = SumoParams(sim_step=0.1, render=True)
+sim_params = SumoParams(sim_step=1, render=True,emission_path='data')
+
 
 network = TrafficLightGridNetwork(
         name="grid-intersection",
@@ -306,8 +313,4 @@ env = AccelEnv_forEV(env_params, sim_params, network)
 
 exp =  Experiment(env)
 
-exp.run(1,1)
-
-
-
-
+exp.run(1,105)
