@@ -6,7 +6,7 @@ from flow.core.params import TrafficLightParams, SumoLaneChangeParams
 from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController,JordanController
 from flow.envs import TrafficLightGridPOEnv
 from flow.envs.rl_forEV_env import ADDITIONAL_ENV_PARAMS 
-from flow.envs import AccelEnv_forEV
+from flow.envs.ring.accel import AccelEnv
 from flow.networks import TrafficLightGridNetwork
 from flow.core.experiment import Experiment
 
@@ -145,7 +145,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=25,
-        begin=30,
+        begin=40,
         number = 1,
         name = 'emergency')
         #color = 'green')
@@ -290,7 +290,7 @@ phases = [{
 }]
 tl_logic.add("center0", phases=phases, programID=1)
 
-env_params = EnvParams(additional_params=ADDITIONAL_ENV_PARAMS)
+env_params = EnvParams(additional_params=ADDITIONAL_ENV_PARAMS.copy())
 
 if USE_INFLOWS:
     initial_config, net_params = get_inflow_params(
@@ -309,7 +309,7 @@ network = TrafficLightGridNetwork(
         initial_config=initial_config,
         traffic_lights=tl_logic)
 
-env = AccelEnv_forEV(env_params, sim_params, network)
+env = AccelEnv(env_params, sim_params, network)
 
 exp =  Experiment(env)
 

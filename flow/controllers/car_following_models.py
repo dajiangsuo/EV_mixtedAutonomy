@@ -537,7 +537,7 @@ class JordanController(BaseController):
                  noise=0,
                  fail_safe=None,
                  car_following_params=None,
-                 w=19,
+                 w=25,
                  v_ev=30,
                  v_N=15):
         """Instantiate an IDM controller."""
@@ -551,6 +551,7 @@ class JordanController(BaseController):
         self.w = w
         self.v_ev = v_ev
         self.v_N = v_N
+        self.Jordan_stop_flag = False
         # caculate x_L, the optimal position for platoon splitting
 
 
@@ -575,12 +576,14 @@ class JordanController(BaseController):
 
         # deriving v_safe and v_desired based on the krauss model
         # v_safe = v_lead + (minGap-v_lead*tao)/(v/decel+tao)
-        minGap=2.5
+        #minGap=2.5
+        curr_headway = h
         decel=7.5
         tao = 1 # human reaction time
         max_spd = 30
-        v_safe  = v_lead + (minGap-v_lead*tao)/(v/decel+tao)
+        v_safe  = v_lead + (curr_headway-v_lead*tao)/(v/decel+tao)
         v_desired = min(v_safe,v+1.5,max_spd)
+        
 
         # get ev status
         ev_string = 'emergency'
@@ -593,37 +596,62 @@ class JordanController(BaseController):
 
         # if no ev, then follows what krauss model specifies
         if ev_id == -1001:
+            print("no EV")
             #print("no ev found")
             if lead_id is None or lead_id == '':
-                return max_spd
+                #print("no EV: drive at max")
+                return (max_spd-v)/env.sim_step
             else:
-                v_desired
+                #print("no EV: drive at desired spd:",v_desired)
+                #print("current spd of Jordan veh:",v)
+                return (v_desired-v)/env.sim_step
 
 
         # when ev exists in the network, we would need to determine if both ev and rl are in the bottom edge and ev is further away from the stop line
         #ev_pos =  env.k.vehicle.get_position(ev_id)
         #d = 500 - ev_pos # ev_from_inter
+
+
+
         ev_spd = env.k.vehicle.get_speed(ev_id)
         edge_num_ev = env.k.vehicle.get_edge(ev_id)
         ev_lane = env.k.vehicle.get_lane(ev_id)
 
+        if self.Jordan_stop_flag == True:
+            if ev_lane ==1:
+                self.Jordan_stop_flag = False
+            return (0-v)/env.sim_step
+
         # if both ev and RL stopped in a queue and if both locates at the bottom edge (i.e., right0_0)
-        if abs(v) < 1e-3 and abs(ev_spd) < 1e-3 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
+        if abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
+            print("meet Jordan conditions")
             ev_pos =  env.k.vehicle.get_position(ev_id)
             d = 500 - ev_pos # ev_from_inter
             pos_edge = env.k.vehicle.get_position(self.veh_id)
             x_a = 500 - pos_edge
 
             # derive the optimal position x_L
-            x_L = d*((1/self.w+1/self.v_ev)/(1/self.w+2/self.v_ev-self.v_N))
+            x_L = d*((1/self.w+1/self.v_N)/(1/self.w+2/self.v_N-1/self.v_ev))
+            print("d the pos of ev from inters:",d)
+            print("x_a the actual pos of Jordan veh",x_a)
+            print("x_L the optimal pos of platoon splitting",x_L)
 
             if x_a <= x_L:
-                return 0
+                print("Jordan: vehicle stop")
+                self.Jordan_stop_flag = True
+                return (0-v)/env.sim_step # rl can should stop to wait for the ev to switch the lane
             else:
+                print("Jordan: vehicle accel")
                 t_s = d/self.w + (d-x_L)/self.v_ev
                 t_a = x_a/self.w
-                return (x_a-x_L)/(t_s-t_a)
+                spd_jordan =  (x_a-x_L)/(t_s-t_a)
+                return (spd_jordan - v)/env.sim_step
 
-    
-
-        return v_desired
+        
+        #print("with EV: drive at desired spd:",v_desired)
+        #print("current spd of Jordan veh:",v)
+        #print("ev veh spd:",ev_spd)
+        #print("Jordan veh edge:",edge_num_rl)
+        #print("ev veh edge:",edge_num_ev)
+        #print("Jordan conditions not met")
+        return (v_desired-v)/env.sim_step
