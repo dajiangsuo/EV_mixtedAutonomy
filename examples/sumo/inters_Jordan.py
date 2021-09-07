@@ -12,7 +12,7 @@ from flow.core.experiment import Experiment
 
 USE_INFLOWS = True
 # time horizon of a single rollout
-HORIZON = 105
+HORIZON = 110
 # number of rollouts per training iteration
 N_ROLLOUTS = 1
 # number of parallel workers
@@ -22,7 +22,7 @@ EXP_NUM = 0
 
 
 # inflow rate at the highway
-FLOW_RATE = 2000
+FLOW_RATE = 2200
 # percent of autonomous vehicles
 RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
@@ -134,7 +134,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=25,
-        begin=15,
+        begin=10,
         number = 1,
         name = 'jordan')
     
@@ -145,7 +145,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=25,
-        begin=40,
+        begin=36,
         number = 1,
         name = 'emergency')
         #color = 'green')

@@ -102,6 +102,8 @@ class AccelEnv_forEV(Env):
         self.num_traffic_lights = self.rows * self.cols
         self.tl_type = env_params.additional_params.get('tl_type')
 
+        self.rl_learn_flag = False
+
         super().__init__(env_params, sim_params, network, simulator)
 
     @property
@@ -164,6 +166,7 @@ class AccelEnv_forEV(Env):
             print("no rl in the network")
             return 0  
 
+        
         rl_id = self.rl_veh[0]
         rl_pos =  self.k.vehicle.get_x_by_id(rl_id)
         rl_spd = self.k.vehicle.get_speed(rl_id)
@@ -207,8 +210,11 @@ class AccelEnv_forEV(Env):
             flag_rl_pos =1
 
 
+        if abs(rl_spd) < 0.1 and abs(ev_spd) < 0.1:
+            self.rl_learn_flag = True
+
         # reward function
-        if flag_rl_pos == 0 and ev_lane == 0:        
+        if flag_rl_pos == 0 and ev_lane == 0 and self.rl_learn_flag == True:        
             reward =  (1-alpha)*ev_spd_norm - alpha*rl_spd_norm
 
         else:
@@ -402,11 +408,12 @@ class AccelEnv_forEV(Env):
         """
 
         #super().additional_command()
+        """
         ev_string = 'emergency'
         rl_string = 'rl'
         for veh_id in self.k.vehicle.get_ids():
             if ev_string in veh_id or rl_string in veh_id:
-                self._reroute_if_final_edge(veh_id)
+                self._reroute_if_final_edge(veh_id)"""
 
     def _reroute_if_final_edge(self, veh_id):
         """Reroute vehicle associated with veh_id.
@@ -497,6 +504,7 @@ class AccelEnv_forEV(Env):
         position.
         """
         obs = super().reset()
+        self.rl_learn_flag = False
 
         """
         for veh_id in self.k.vehicle.get_ids():

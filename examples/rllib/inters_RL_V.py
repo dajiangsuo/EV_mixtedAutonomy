@@ -11,7 +11,7 @@ from flow.networks import TrafficLightGridNetwork
 
 USE_INFLOWS = True
 # time horizon of a single rollout
-HORIZON = 105
+HORIZON = 110
 # number of rollouts per training iteration
 N_ROLLOUTS = 1
 # number of parallel workers
@@ -133,7 +133,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=25,
-        begin=15,
+        begin=14,
         number = 1,
         name = 'rl')
     
@@ -408,7 +408,7 @@ trials = run_experiments({
         "checkpoint_at_end": True,  # generate a checkpoint at the end
         "max_failures": 999,
         "stop": {  # stopping conditions
-            "training_iteration": 1000,  # number of iterations to stop after
+            "training_iteration": 1500,  # number of iterations to stop after
         },
     },
 })
