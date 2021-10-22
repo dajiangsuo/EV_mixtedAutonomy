@@ -1,4 +1,4 @@
--"""
+"""
 Contains several custom car-following control models.
 
 These controllers can be used to modify the acceleration behavior of vehicles
@@ -664,7 +664,7 @@ class JordanController(BaseController):
         #print("Jordan conditions not met")
         return (v_desired-v)/env.sim_step
 
-class JordanController_multi_inters(BaseController):
+class JordanControllerMulti(BaseController):
     """The controller for splitting platoon near intersection to assistant the manuver (i.e., lane change) of emergency vehicle.
 
     Implamented by Dajiang Suo based on the work by Jordan et al., see:
@@ -705,12 +705,12 @@ class JordanController_multi_inters(BaseController):
                  w=15,
                  v_ev=30,
                  v_N=15,
-                 edge1_name = 'center_1_0',
-                 edge1_len = 300,
-                 center_name = 'center0',
+                 edge1_name = 'right0_0',
+                 edge1_len = 175,
+                 center_name = 'center0_4',
                  center_len = 40,
-                 edge2_name = 'center_1_0',
-                 edge2_len = 300):
+                 edge2_name = 'right1_0',
+                 edge2_len = 175):
         """Instantiate an IDM controller."""
         BaseController.__init__(
             self,
@@ -795,6 +795,7 @@ class JordanController_multi_inters(BaseController):
         edge_num_ev = env.k.vehicle.get_edge(ev_id)
         ev_lane = env.k.vehicle.get_lane(ev_id)
         z = self.edge2_len + self.center_len
+        ev_pos =  env.k.vehicle.get_position(ev_id)
 
         if self.Jordan_stop_flag == True:
             if ev_lane ==1:
@@ -814,10 +815,9 @@ class JordanController_multi_inters(BaseController):
 
         if abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
             print("meet Jordan conditions")
-            ev_pos =  env.k.vehicle.get_position(ev_id)
-            d = 300 - ev_pos # ev_from_intersection, note that the length of the road segment now is set to 300
+            d = self.edge1_len - ev_pos # ev_from_intersection, note that the length of the road segment now is set to 300
             pos_edge = env.k.vehicle.get_position(self.veh_id)
-            x_a = 300 - pos_edge
+            x_a = self.edge1_len - pos_edge
 
             # derive the optimal position x_L
             #x_L = d*((1/self.w+1/self.v_N)/(1/self.w+2/self.v_N-1/self.v_ev))
@@ -831,7 +831,7 @@ class JordanController_multi_inters(BaseController):
             # I need to consider two scenarios where x_L > 0 and x_L < 0
             if x_L < 0: # optimal splitting point is at the position downstream of the first intersection
                 # if CAV is the first vehicle in the queue
-                lead_veh_id = self.k.vehicle.get_leader(self.veh_id)
+                lead_veh_id = env.k.vehicle.get_leader(self.veh_id)
                 edge_num_leader = env.k.vehicle.get_edge(lead_veh_id)
                 if edge_num_leader == edge2_name:
                     # determine if the queue length in the second intersection is less than a certain threshold, the CAV stand still to support the early lane-changing by 
@@ -841,7 +841,7 @@ class JordanController_multi_inters(BaseController):
                     if (1/self.w+1/self.v_N)*leader_pos <= d/self.w + (d+z)/self.v_ev:
                         #set Jordan stop flag to true
                         self.Jordan_stop_flag = True
-                        return return (0-v)/env.sim_step
+                        return (0-v)/env.sim_step
                     else:
                         # ev should still switch at the optimal point, how to determine the jordan speed in this case?
                         self.Jordan_accel_flag = True
@@ -870,12 +870,13 @@ class JordanController_multi_inters(BaseController):
         # Ans: if the queue length in the second road segment is at another one 
         elif abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == self.edge1_name and edge_num_rl == self.edge2_name:
             # if av locates in a position that allows queue discharge before ev reaches the stop line of the second intersection, av should travel as usual
-            follower_veh_id = self.k.vehicle.get_follower(self.veh_id)
+            follower_veh_id = env.k.vehicle.get_follower(self.veh_id)
             edge_num_follower = env.k.vehicle.get_edge(follower_veh_id)
             av_pos = env.k.vehicle.get_position(self.veh_id)
             av_pos = self.edge2_len - av_pos
+            d = self.edge1_len - ev_pos
 
-            if edge_num_follower == edge1_name and (1/self.w+1/self.v_N)*av_pos <= d/self.w + (d+z)/self.v_ev:
+            if edge_num_follower == self.edge1_name and (1/self.w+1/self.v_N)*av_pos <= d/self.w + (d+z)/self.v_ev:
                 return (v_desired-v)/env.sim_step
 
             else:

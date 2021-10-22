@@ -3,7 +3,7 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, \
     InFlows, SumoCarFollowingParams
 from flow.core.params import VehicleParams
 from flow.core.params import TrafficLightParams, SumoLaneChangeParams
-from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController,JordanController
+from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController,JordanController,JordanControllerMulti
 from flow.envs import TrafficLightGridPOEnv
 from flow.envs.rl_forEV_env import ADDITIONAL_ENV_PARAMS 
 from flow.envs.ring.accel import AccelEnv
@@ -13,7 +13,7 @@ from flow.core.experiment import Experiment
 USE_INFLOWS = True
 # Que: this should be syncronized with RL expriment
 # Que: How many vehicles should be added in one episode???
-HORIZON = 110
+HORIZON = 600
 # number of rollouts per training iteration
 N_ROLLOUTS = 1
 # number of parallel workers
@@ -23,7 +23,7 @@ EXP_NUM = 0
 
 
 # inflow rate at the highway
-FLOW_RATE = 2050
+FLOW_RATE = 1000
 # percent of autonomous vehicles
 RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
@@ -32,9 +32,9 @@ NUM_RL = [1, 13, 17][EXP_NUM]
 V_ENTER = 15
 
 # what each element really means?
-INNER_LENGTH = 500 #300
-LONG_LENGTH = 500 #100
-SHORT_LENGTH = 500 #300
+INNER_LENGTH = 175 #300
+LONG_LENGTH = 175 #100
+SHORT_LENGTH = 175 #300
 # adding one more row
 N_ROWS = 2
 # how I may get a sense of 
@@ -98,11 +98,18 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         spacing='custom', lanes_distribution=float('inf'), shuffle=True)
 
     inflow = InFlows()
+    edge_humans_enter = 'right0_0'
     outer_edges = gen_edges(col_num, row_num)
 
     
     #Adding human driven vehicles.
-    
+    inflow.add(
+        veh_type='idm',
+        edge=edge_humans_enter,
+        vehs_per_hour=FLOW_RATE,
+        depart_lane='random',
+        depart_speed=V_ENTER)
+    """
     for i in range(len(outer_edges)):
         inflow.add(
             veh_type='idm',
@@ -113,7 +120,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
             departSpeed=10)
             #number =3,
             #color = 'white')
-            
+    """
     
     
 
@@ -213,7 +220,7 @@ vehicles.add(
 
 vehicles.add(
     veh_id="jordan",
-    acceleration_controller=(JordanController, {}),
+    acceleration_controller=(JordanControllerMulti, {}),
     #lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
@@ -294,6 +301,7 @@ phases = [{
     "state":"rryyrryy"
 }]
 tl_logic.add("center0", phases=phases, programID=1)
+tl_logic.add("center1", phases=phases, programID=1)
 
 env_params = EnvParams(additional_params=ADDITIONAL_ENV_PARAMS.copy())
 
