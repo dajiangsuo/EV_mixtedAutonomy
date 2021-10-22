@@ -3,15 +3,17 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, \
     InFlows, SumoCarFollowingParams
 from flow.core.params import VehicleParams
 from flow.core.params import TrafficLightParams, SumoLaneChangeParams
-from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController
+from flow.controllers import SimCarFollowingController, GridRouter, IDMController, RLController, SimLaneChangeController,JordanController
 from flow.envs import TrafficLightGridPOEnv
 from flow.envs.rl_forEV_env import ADDITIONAL_ENV_PARAMS 
-from flow.envs import AccelEnv_forEV
+from flow.envs.ring.accel import AccelEnv
 from flow.networks import TrafficLightGridNetwork
+from flow.core.experiment import Experiment
 
 USE_INFLOWS = True
-# time horizon of a single rollout
-HORIZON = 145
+# Que: this should be syncronized with RL expriment
+# Que: How many vehicles should be added in one episode???
+HORIZON = 110
 # number of rollouts per training iteration
 N_ROLLOUTS = 1
 # number of parallel workers
@@ -21,17 +23,21 @@ EXP_NUM = 0
 
 
 # inflow rate at the highway
-FLOW_RATE = 2000
+FLOW_RATE = 2050
 # percent of autonomous vehicles
 RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
 NUM_RL = [1, 13, 17][EXP_NUM]
 
 V_ENTER = 15
+
+# what each element really means?
 INNER_LENGTH = 500 #300
 LONG_LENGTH = 500 #100
 SHORT_LENGTH = 500 #300
-N_ROWS = 1
+# adding one more row
+N_ROWS = 2
+# how I may get a sense of 
 N_COLUMNS = 1
 NUM_CARS_LEFT = 1
 NUM_CARS_RIGHT = 1
@@ -127,15 +133,15 @@ def get_inflow_params(col_num, row_num, additional_net_params):
     
 
     inflow.add(
-        veh_type='rl',
+        veh_type='jordan',
         edge=edge_EV_enter,
         #probability=0.25,
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=25,
-        begin=15,
+        begin=12,
         number = 1,
-        name = 'rl')
+        name = 'jordan')
     
     inflow.add(
         veh_type='emergency',
@@ -144,7 +150,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=25,
-        begin=30,
+        begin=28,
         number = 1,
         name = 'emergency')
         #color = 'green')
@@ -206,8 +212,8 @@ vehicles.add(
     #num_vehicles=1)
 
 vehicles.add(
-    veh_id="rl",
-    acceleration_controller=(RLController, {}),
+    veh_id="jordan",
+    acceleration_controller=(JordanController, {}),
     #lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
@@ -229,12 +235,13 @@ vehicles.add(
     lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
+
         decel=7.5,  # avoid collisions at emergency stops
         max_speed=30,
         #speed_mode="all_checks",
     ),
     lane_change_params=SumoLaneChangeParams(
-        lane_change_mode=1621,
+        lane_change_mode=1621, # according to this tutorial, 1621 means having all lang
     ),
     #routing_controller=(GridRouter, {}),
     #color = 'red',
@@ -288,131 +295,27 @@ phases = [{
 }]
 tl_logic.add("center0", phases=phases, programID=1)
 
+env_params = EnvParams(additional_params=ADDITIONAL_ENV_PARAMS.copy())
+
 if USE_INFLOWS:
     initial_config, net_params = get_inflow_params(
         col_num=N_COLUMNS,
         row_num=N_ROWS,
         additional_net_params=additional_net_params)
 
-flow_params = dict(
-    # name of the experiment
-    exp_tag='traffic_light_grid',
-
-    # name of the flow environment the experiment is running on
-    #env_name=TrafficLightGridPOEnv,
-    env_name=AccelEnv_forEV,
-
-    # name of the network class the experiment is running on
-    network=TrafficLightGridNetwork,
-
-    # simulator that is used by the experiment
-    simulator='traci',
-
-    # sumo-related parameters (see flow.core.params.SumoParams)
-    sim=SumoParams(
-        sim_step=1,
-        render=False,
-        restart_instance=True,
-    ),
-
-    # environment related parameters (see flow.core.params.EnvParams)
-    env=EnvParams(
-        horizon=HORIZON,
-        #additional_params=additional_env_params,
-        #sims_per_step=5,
-        #warmup_steps=0,
-        additional_params=ADDITIONAL_ENV_PARAMS.copy(),
-    ),
-
-    # network-related parameters (see flow.core.params.NetParams and the
-    # network's documentation or ADDITIONAL_NET_PARAMS component). This is
-    # filled in by the setup_exps method below.
-    net=net_params,
-
-    # vehicles to be placed in the network at the start of a rollout (see
-    # flow.core.params.VehicleParams)
-    veh=vehicles,
-
-    # parameters specifying the positioning of vehicles upon initialization/
-    # reset (see flow.core.params.InitialConfig). This is filled in by the
-    # setup_exps method below.
-    initial=initial_config,
+#sim_params = SumoParams(sim_step=0.1, render=True)
+sim_params = SumoParams(sim_step=1, render=True,emission_path='data')
 
 
-    # traffic lights to be introduced to specific nodes (see
-    # flow.core.params.TrafficLightParams)
-    tls=tl_logic,
-)
+network = TrafficLightGridNetwork(
+        name="grid-intersection",
+        vehicles=vehicles,
+        net_params=net_params,
+        initial_config=initial_config,
+        traffic_lights=tl_logic)
 
-import json
+env = AccelEnv(env_params, sim_params, network)
 
-import ray
-try:
-    from ray.rllib.agents.agent import get_agent_class
-except ImportError:
-    from ray.rllib.agents.registry import get_agent_class
-from ray.tune import run_experiments
-from ray.tune.registry import register_env
+exp =  Experiment(env)
 
-from flow.utils.registry import make_create_env
-from flow.utils.rllib import FlowParamsEncoder
-
-# number of parallel workers
-N_CPUS = 2
-# number of rollouts per training iteration
-N_ROLLOUTS = 64
-
-ray.shutdown()
-ray.init(num_cpus=N_CPUS+1,object_store_memory=500 * 1024 * 1024)
-
-# The algorithm or model to train. This may refer to "
-#      "the name of a built-on algorithm (e.g. RLLib's DQN "
-#      "or PPO), or a user-defined trainable function or "
-#      "class registered in the tune registry.")
-alg_run = "PPO"
-
-agent_cls = get_agent_class(alg_run)
-config = agent_cls._default_config.copy()
-config["num_workers"] = N_CPUS - 1  # number of parallel workers
-config["train_batch_size"] = HORIZON * N_ROLLOUTS  # batch size
-config["gamma"] = 0.999  # discount rate
-config["model"].update({"fcnet_hiddens": [64, 64]})  # size of hidden layers in network
-config["use_gae"] = True  # using generalized advantage estimation
-config["lambda"] = 0.97  
-config["sgd_minibatch_size"] = min(16 * 1024, config["train_batch_size"])  # stochastic gradient descent
-config["kl_target"] = 0.02  # target KL divergence
-config["num_sgd_iter"] = 10  # number of SGD iterations
-config["horizon"] = HORIZON  # rollout horizon
-
-# save the flow params for replay
-flow_json = json.dumps(flow_params, cls=FlowParamsEncoder, sort_keys=True,
-                       indent=4)  # generating a string version of flow_params
-config['env_config']['flow_params'] = flow_json  # adding the flow_params to config dict
-config['env_config']['run'] = alg_run
-
-# Call the utility function make_create_env to be able to 
-# register the Flow env for this experiment
-create_env, gym_name = make_create_env(params=flow_params, version=0)
-
-# Register as rllib env with Gym
-register_env(gym_name, create_env)
-
-trials = run_experiments({
-    flow_params["exp_tag"]: {
-        "run": alg_run,
-        "env": gym_name,
-        "config": {
-            **config
-        },
-        "checkpoint_freq": 20,  # number of iterations between checkpoints
-        "checkpoint_at_end": True,  # generate a checkpoint at the end
-        "max_failures": 999,
-        "stop": {  # stopping conditions
-            "training_iteration": 1500,  # number of iterations to stop after
-        },
-    },
-})
-
-ray.shutdown()
-
-
+exp.run(1,110)

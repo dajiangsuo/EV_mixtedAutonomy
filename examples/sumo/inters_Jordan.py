@@ -22,7 +22,7 @@ EXP_NUM = 0
 
 
 # inflow rate at the highway
-FLOW_RATE = 2200
+FLOW_RATE = 2050
 # percent of autonomous vehicles
 RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
@@ -134,7 +134,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=25,
-        begin=10,
+        begin=12,
         number = 1,
         name = 'jordan')
     
@@ -145,7 +145,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=RL_PENETRATION * FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=25,
-        begin=36,
+        begin=28,
         number = 1,
         name = 'emergency')
         #color = 'green')
@@ -313,4 +313,4 @@ env = AccelEnv(env_params, sim_params, network)
 
 exp =  Experiment(env)
 
-exp.run(1,105)
+exp.run(1,110)
