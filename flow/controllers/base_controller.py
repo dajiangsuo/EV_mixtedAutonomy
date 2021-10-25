@@ -67,6 +67,7 @@ class BaseController:
         """Return the acceleration of the controller."""
         raise NotImplementedError
 
+
     def get_action(self, env):
         """Convert the get_accel() acceleration into an action.
 

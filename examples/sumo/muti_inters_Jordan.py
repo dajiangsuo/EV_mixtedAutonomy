@@ -247,9 +247,9 @@ vehicles.add(
         max_speed=30,
         #speed_mode="all_checks",
     ),
-    lane_change_params=SumoLaneChangeParams(
-        lane_change_mode=1621, # according to this tutorial, 1621 means having all lang
-    ),
+    #lane_change_params=SumoLaneChangeParams(
+    #    lane_change_mode=1621, # according to this tutorial, 1621 means having all lang
+    #),
     #routing_controller=(GridRouter, {}),
     #color = 'red',
     num_vehicles=0)

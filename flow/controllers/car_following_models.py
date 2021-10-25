@@ -733,6 +733,8 @@ class JordanControllerMulti(BaseController):
         # caculate x_L, the optimal position for platoon splitting
 
 
+    
+
     def get_accel(self, env):
         """control the acceleration & deceleration of RL."""
         # if the RL does not locate at the edge of right0_0, then we should judge wether the RL should decelerate or drive based on the krauss model
@@ -743,7 +745,186 @@ class JordanControllerMulti(BaseController):
         # scenario 1. x_a > x_L
         # scenario 2. x_a < x_L
 
+
+        #  apply lane changing to the EV at everytime steps
+        max_length = 175
+
+        veh_ids = env.k.vehicle.get_ids()
+        for veh in veh_ids:
+
+            is_rl_behind = False
+            own_lane = 0
+            next_lane = 0
+            own_leader = ""
+            next_lane_leader = ""
+            own_leader_dist = 10000
+            next_lane_leader_dist = 10000
+            ev_id = ""
+            rl_id = ""
+
+            can_break = False
+            special_case = False
+
+            if veh.startswith("emergency"):
+                ev_id = veh
+                lane = env.k.vehicle.get_lane(veh)
+
+                if lane == 1:
+                    # already in the right lane, no chnage needed
+                    break
+
+                pos = max_length - env.k.vehicle.get_position(veh)
+                edge = env.k.vehicle.get_edge(veh)
+                
+                if edge == "right1_0":
+                    ev_pos_from_dest = max_length + pos
+                elif edge == "right0_0":
+                    ev_pos_from_dest = 2 * max_length + pos
+                elif edge == ":center0_4":
+                    ev_pos_from_dest = max_length + pos
+                else:
+                    # EV is in the outgoing right2_0 road
+                    ev_pos_from_dest = pos 
+
+                for sub_veh in veh_ids:
+
+                    sub_egde = env.k.vehicle.get_edge(sub_veh)
+                    sub_lane = env.k.vehicle.get_lane(sub_veh)
+
+                    # get the vehicle in the same lane as EV but infront of EV
+                    if sub_egde == edge:
+                        sub_pos = max_length - env.k.vehicle.get_position(sub_veh)
+                        if edge == "right1_0":
+                            sub_pos_from_dest = max_length + sub_pos
+                        elif edge == "right0_0":
+                            sub_pos_from_dest = 2 * max_length + sub_pos
+                        elif edge == ":center0_4":
+                            sub_pos_from_dest = max_length + sub_pos
+                        else:
+                            sub_pos_from_dest = sub_pos 
+
+                        if sub_pos_from_dest < ev_pos_from_dest:
+                            if sub_lane != lane:
+                                next_lane += 1
+                                # update the possible candidate to be the next lane immediate leader of EV
+                                if ev_pos_from_dest - sub_pos_from_dest < next_lane_leader_dist:
+                                    next_lane_leader = sub_veh
+                                    next_lane_leader_dist = ev_pos_from_dest - sub_pos_from_dest
+                            else:
+                                # update the possible candidate to be the own lane immediate leader of EV
+                                own_lane += 1
+                                if ev_pos_from_dest - sub_pos_from_dest < own_leader_dist:
+                                    own_leader = sub_veh
+                                    own_leader_dist = ev_pos_from_dest - sub_pos_from_dest
+                    
+                    # we only need to do a EV lane change when the RL vehicle is behind once the lane changing is performed
+                    if sub_veh.startswith("jordan"):
+                        rl_id = sub_veh
+                        rl_pos = max_length - env.k.vehicle.get_position(sub_veh)
+                        rl_edge = env.k.vehicle.get_edge(sub_veh)
+
+                        if rl_edge == "right1_0":
+                            rl_pos_from_dest = max_length + rl_pos
+                        elif rl_edge == "right0_0":
+                            rl_pos_from_dest = 2 * max_length + rl_pos
+                        elif rl_edge == ":center0_4":
+                            rl_pos_from_dest = max_length + rl_pos
+                        else:
+                            rl_pos_from_dest = rl_pos 
+
+                        if rl_pos_from_dest < ev_pos_from_dest:
+                            # can not do any lane changes now since the RL vehicle is in front
+                            can_break = True
+                            break
+
+                        # leading vehicle of the RL vehicle
+                        lead_id = env.k.vehicle.get_leader(sub_veh)
+                        print("lead id:" + str(lead_id))
+                        if lead_id in ["", None]:
+                            special_case = True  
+                        else:
+                            lead_pos = max_length - env.k.vehicle.get_position(lead_id)
+                            lead_edge = env.k.vehicle.get_edge(lead_id)
+                            if lead_edge == "right1_0":
+                                lead_pos_from_dest = max_length + lead_pos
+                            elif lead_edge == "right0_0":
+                                lead_pos_from_dest = 2 * max_length + lead_pos
+                            elif lead_edge == ":center0_4":
+                                lead_pos_from_dest = max_length + lead_pos
+                            else:
+                                lead_pos_from_dest = lead_pos 
+
+                            if lead_pos_from_dest < ev_pos_from_dest:
+                                is_rl_behind = True
+                            else:
+                                is_rl_behind = False
+
+                if can_break:
+                    print("-----C100")
+                    env.k.vehicle.apply_lane_change(ev_id, 0) # no change
+                    break
+                      
+                left = 1
+                no_change = 0
+                own_speed = env.k.vehicle.get_speed(own_leader)
+                next_speed = env.k.vehicle.get_speed(next_lane_leader)
+                ev_edge = env.k.vehicle.get_edge(ev_id)
+                rl_edge = env.k.vehicle.get_edge(rl_id)
+                print("is RL behind: " + str(is_rl_behind))
+                if ev_edge == "right2_0" and rl_edge == "right0_0":
+                    # no lane changing if the two vehicles are far apart
+                    print("-----C101")
+                    env.k.vehicle.apply_lane_change(ev_id, no_change)
+                    break
+
+                if own_speed < 0 or next_speed < 0:
+                    if special_case:
+                        if own_lane >= next_lane:
+                            if own_lane == 1:
+                                print("C1")
+                                # only changing to left lane is allowed
+                                env.k.vehicle.apply_lane_change(ev_id, no_change)
+                            else:
+                                print("C2")
+                                env.k.vehicle.apply_lane_change(ev_id, left)
+                        else:
+                            print("C3")
+                            env.k.vehicle.apply_lane_change(ev_id, no_change)
+                    elif own_lane >= next_lane and is_rl_behind:
+                        if own_lane == 1:
+                            # only changing to left lane is allowed
+                            print("C4")
+                            env.k.vehicle.apply_lane_change(ev_id, no_change)
+                        else:
+                            print("C5")
+                            env.k.vehicle.apply_lane_change(ev_id, left)
+                    else:
+                        print("C6")
+                        env.k.vehicle.apply_lane_change(ev_id, no_change)
+                elif own_lane >= next_lane and own_speed <= next_speed: 
+                    if special_case:
+                        if own_lane == 1:
+                            # only changing to left lane is allowed
+                            print("C7")
+                            env.k.vehicle.apply_lane_change(ev_id, no_change)
+                        else:
+                            print("C8")
+                            env.k.vehicle.apply_lane_change(ev_id, left)
+                    elif is_rl_behind:
+                        if own_lane == 1:
+                            # only changing to left lane is allowed
+                            print("C9")
+                            env.k.vehicle.apply_lane_change(ev_id, no_change)
+                        else:
+                            print("C10")
+                            env.k.vehicle.apply_lane_change(ev_id, left)
+                    else:
+                        print("C11")
+                        env.k.vehicle.apply_lane_change(ev_id, no_change)
+                break
+
         # get the current position and spd of the ego vehicle 
+        #self.apply_lane_change()
 
         pos_abs =  env.k.vehicle.get_x_by_id(self.veh_id)
         edge_num_rl = env.k.vehicle.get_edge(self.veh_id)
