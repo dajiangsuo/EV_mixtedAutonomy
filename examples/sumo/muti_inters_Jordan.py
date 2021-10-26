@@ -29,7 +29,9 @@ RL_PENETRATION = [0.1, 0.25, 0.33][EXP_NUM]
 # num_rl term (see ADDITIONAL_ENV_PARAMs)
 NUM_RL = [1, 13, 17][EXP_NUM]
 
-V_ENTER = 15
+V_MAX_EV = 35
+V_MAX_CARS = 15
+V_ENTER = 10
 
 # what each element really means?
 INNER_LENGTH = 175 #300
@@ -107,7 +109,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         veh_type='idm',
         edge=edge_humans_enter,
         vehs_per_hour=FLOW_RATE,
-        depart_lane='random',
+        depart_lane='free',
         depart_speed=V_ENTER)
     """
     for i in range(len(outer_edges)):
@@ -143,9 +145,9 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         veh_type='jordan',
         edge=edge_EV_enter,
         #probability=0.25,
-        vehs_per_hour=RL_PENETRATION * FLOW_RATE,
+        vehs_per_hour=FLOW_RATE,
         departLane= 1, #"free",
-        departSpeed=25,
+        departSpeed=V_ENTER,
         begin=12,
         number = 1,
         name = 'jordan')
@@ -154,9 +156,9 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         veh_type='emergency',
         edge=edge_EV_enter,
         #probability=0.25,
-        vehs_per_hour=RL_PENETRATION * FLOW_RATE,
+        vehs_per_hour=FLOW_RATE,
         departLane= 0, #"free",
-        departSpeed=25,
+        departSpeed=V_MAX_EV,
         begin=28,
         number = 1,
         name = 'emergency')
@@ -208,13 +210,14 @@ vehicles.add(
     acceleration_controller=(SimCarFollowingController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
+        accel=3.0,
         decel=7.5,  # avoid collisions at emergency stops
-        max_speed=V_ENTER,
+        max_speed=V_MAX_CARS,
         speed_mode="all_checks",
     ),
     #routing_controller=(GridRouter, {}),
     #color = 'white',
-    num_vehicles=tot_cars)
+    num_vehicles=0)
     #num_vehicles=0)
     #num_vehicles=1)
 
@@ -224,8 +227,9 @@ vehicles.add(
     #lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
         minGap=2.5,
+        accel=3.0,
         decel=7.5,  # avoid collisions at emergency stops
-        max_speed=30,
+        max_speed=V_MAX_CARS,
         speed_mode="all_checks",
     ),
     #routing_controller=(GridRouter, {}),
@@ -241,10 +245,10 @@ vehicles.add(
     acceleration_controller=(SimCarFollowingController, {}),
     lane_change_controller=(SimLaneChangeController, {}),
     car_following_params=SumoCarFollowingParams(
-        minGap=2.5,
-
+        minGap=1.0,
+        accel=5.0,
         decel=7.5,  # avoid collisions at emergency stops
-        max_speed=30,
+        max_speed=V_MAX_EV,
         #speed_mode="all_checks",
     ),
     #lane_change_params=SumoLaneChangeParams(
@@ -326,4 +330,4 @@ env = AccelEnv(env_params, sim_params, network)
 
 exp =  Experiment(env)
 
-exp.run(1,110)
+exp.run(1,600)
