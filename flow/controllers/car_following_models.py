@@ -995,7 +995,7 @@ class JordanControllerMulti(BaseController):
 
 
         if abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
-            print("meet Jordan conditions")
+            print("meet Jordan conditions near the 1st intersection")
             d = self.edge1_len - ev_pos # ev_from_intersection, note that the length of the road segment now is set to 300
             pos_edge = env.k.vehicle.get_position(self.veh_id)
             x_a = self.edge1_len - pos_edge
@@ -1046,6 +1046,32 @@ class JordanControllerMulti(BaseController):
                     self.Jordan_accel_speed = spd_jordan
                     return (spd_jordan - v)/env.sim_step
 
+
+        elif abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right1_0' and edge_num_rl == 'right1_0':
+            print("meet Jordan conditions near the 2nd intersection")
+            ev_pos =  env.k.vehicle.get_position(ev_id)
+            d = self.edge2_len - ev_pos # ev_from_inter
+            pos_edge = env.k.vehicle.get_position(self.veh_id)
+            x_a = self.edge2_len - pos_edge
+
+            # derive the optimal position x_L
+            x_L = d*((1/self.w+1/self.v_N)/(1/self.w+2/self.v_N-1/self.v_ev))
+            print("d the pos of ev from inters:",d)
+            print("x_a the actual pos of Jordan veh",x_a)
+            print("x_L the optimal pos of platoon splitting",x_L)
+
+            if x_a <= x_L:
+                print("Jordan: vehicle stop")
+                self.Jordan_stop_flag = True
+                return (0-v)/env.sim_step # rl can should stop to wait for the ev to switch the lane
+            else:
+                print("Jordan: vehicle accel")
+                self.Jordan_accel_flag = True
+                t_s = d/self.w + (d-x_L)/self.v_ev
+                t_a = x_a/self.w
+                spd_jordan =  (x_a-x_L)/(t_s-t_a)
+                self.Jordan_accel_speed = spd_jordan
+                return (spd_jordan - v)/env.sim_step
 
         # else if the CAV locates in the first intersection downstream, its best driving strategy to wait and stay stationary until the EV switches to the left lane?
         # Ans: if the queue length in the second road segment is at another one 

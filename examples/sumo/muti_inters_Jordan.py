@@ -148,7 +148,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=V_ENTER,
-        begin=12,
+        begin=130,
         number = 1,
         name = 'jordan')
     
@@ -159,7 +159,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=V_MAX_EV,
-        begin=28,
+        begin=155,
         number = 1,
         name = 'emergency')
         #color = 'green')
