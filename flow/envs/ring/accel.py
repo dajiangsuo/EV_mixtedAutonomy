@@ -3,6 +3,14 @@
 from flow.core import rewards
 from flow.envs.base import Env
 from gym.spaces.box import Box
+from flow.controllers.car_following_models import SimCarFollowingController
+from flow.controllers import JordanControllerMulti
+from flow.core.params import InFlows, NetParams, SumoCarFollowingParams, TrafficLightParams, VehicleParams
+from random import randint
+from flow.envs.base import Env
+import collections
+import logging
+import os
 
 import numpy as np
 
@@ -173,10 +181,168 @@ class AccelEnv(Env):
         This also includes updating the initial absolute position and previous
         position.
         """
+        FLOW_RATE = 1000
+        V_MAX_EV = 35
+        V_MAX_CARS = 15
+        V_ENTER = 10
+        # 175m length edges ensures V2X communication is achievable.
+        INNER_LENGTH = 175 #300
+        LONG_LENGTH = 175 #100
+        SHORT_LENGTH = 175 #300
+        N_ROWS = 2
+        N_COLUMNS = 1
+        NUM_CARS_LEFT = 1
+        NUM_CARS_RIGHT = 1
+        NUM_CARS_TOP = 1
+        NUM_CARS_BOT = 1
+        for _ in range(100):
+            try:
+                # introduce new inflows within the pre-defined inflow range
+                inflow = InFlows()
+                edge_humans_enter = 'right0_0'
+
+                # Adding human driven vehicles.
+                inflow.add(
+                    veh_type='idm',
+                    edge=edge_humans_enter,
+                    vehs_per_hour=FLOW_RATE,
+                    depart_lane='free',
+                    depart_speed=V_ENTER)
+
+                edge_EV_enter = 'right0_0'
+                edge_RL_enter = 'right0_0'
+
+                
+                # randomize the EV and RL arrivals  
+                RL_entrance_time = randint(30,150)
+                EV_entrance_time = RL_entrance_time + randint(1,30)
+                
+
+                #print(RL_entrance_time)
+                #print(EV_entrance_time)
+
+                inflow.add(
+                    veh_type='jordan',
+                    edge=edge_RL_enter,
+                    vehs_per_hour=FLOW_RATE,
+                    depart_lane= 1, 
+                    depart_speed=V_ENTER,
+                    begin=RL_entrance_time,
+                    number = 1,
+                    name = 'jordan')
+    
+                inflow.add(
+                    veh_type='emergency',
+                    edge=edge_EV_enter,
+                    vehs_per_hour=FLOW_RATE,
+                    depart_lane= 0,
+                    depart_speed=V_MAX_EV,
+                    begin=EV_entrance_time,
+                    number = 1,
+                    name = 'emergency')
+                
+
+                grid_array = {
+                    "short_length": SHORT_LENGTH,
+                    "inner_length": INNER_LENGTH,
+                    "long_length": LONG_LENGTH,
+                    "row_num": N_ROWS,
+                    "col_num": N_COLUMNS,
+                    "cars_left": NUM_CARS_LEFT,
+                    "cars_right": NUM_CARS_RIGHT,
+                    "cars_top": NUM_CARS_TOP,
+                    "cars_bot": NUM_CARS_BOT
+                }
+
+                additional_net_params = {
+                    'speed_limit': V_MAX_EV,
+                    'grid_array': grid_array,
+                    'horizontal_lanes': 2,
+                    'vertical_lanes': 2,
+                    'traffic_lights': True,
+                    "random_start": False
+                }
+
+                net_params = NetParams(
+                        inflows=inflow,
+                        additional_params=additional_net_params)
+
+                vehicles = VehicleParams()
+                vehicles.add(
+                    veh_id='idm',
+                    acceleration_controller=(SimCarFollowingController, {}),
+                    car_following_params=SumoCarFollowingParams(
+                    min_gap=2.5,
+                    accel=3.0,
+                    decel=7.5,  # avoid collisions at emergency stops
+                    max_speed=V_MAX_CARS,
+                    speed_mode="all_checks",
+                    ),
+                    num_vehicles=0)
+
+                vehicles.add(
+                    veh_id="jordan",
+                    acceleration_controller=(JordanControllerMulti, {}),
+                    car_following_params=SumoCarFollowingParams(
+                    min_gap=2.5,
+                    accel=3.0,
+                    decel=7.5,  # avoid collisions at emergency stops
+                    max_speed=V_MAX_CARS,
+                    speed_mode="all_checks",
+                    ),
+                num_vehicles=0)
+
+                vehicles.add(
+                    veh_id='emergency',
+                    acceleration_controller=(SimCarFollowingController, {}),
+                    car_following_params=SumoCarFollowingParams(
+                        min_gap=1.0,
+                        accel=5.0,
+                        decel=7.5,  # avoid collisions at emergency stops
+                        max_speed=V_MAX_EV,
+                    ),
+                    num_vehicles=0)
+
+                #  Add traffic lights
+                tl_logic = TrafficLightParams(baseline=False)
+                phases = [{
+                    "duration": "31",
+                    "minDur": "8",
+                    "maxDur": "45",
+                    "state": "GGrrGGrr"
+                }, {
+                    "duration": "6",
+                    "minDur": "3",
+                    "maxDur": "6",
+                    "state":"yyrryyrr"
+                }, {
+                    "duration": "31",
+                    "minDur": "8",
+                    "maxDur": "45",
+                    "state":"rrGGrrGG"
+                }, {
+                    "duration": "6",
+                    "minDur": "3",
+                    "maxDur": "6",
+                    "state":"rryyrryy"
+                }]
+                tl_logic.add("center0", phases=phases, programID=1)
+                tl_logic.add("center1", phases=phases, programID=1)
+                # recreate the network object
+                self.network = self.network.__class__(
+                        name=self.network.orig_name,
+                        vehicles=vehicles,
+                        net_params=net_params,
+                        initial_config=self.initial_config,
+                        traffic_lights=tl_logic)
+
+            except Exception as e:
+                print('error on reset ', e)
+
         obs = super().reset()
 
-        for veh_id in self.k.vehicle.get_ids():
-            self.absolute_position[veh_id] = self.k.vehicle.get_x_by_id(veh_id)
-            self.prev_pos[veh_id] = self.k.vehicle.get_x_by_id(veh_id)
+        #for veh_id in self.k.vehicle.get_ids():
+        #    self.absolute_position[veh_id] = self.k.vehicle.get_x_by_id(veh_id)
+        #    self.prev_pos[veh_id] = self.k.vehicle.get_x_by_id(veh_id)
 
         return obs

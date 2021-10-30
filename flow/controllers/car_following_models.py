@@ -1014,7 +1014,7 @@ class JordanControllerMulti(BaseController):
                 # if CAV is the first vehicle in the queue
                 lead_veh_id = env.k.vehicle.get_leader(self.veh_id)
                 edge_num_leader = env.k.vehicle.get_edge(lead_veh_id)
-                if edge_num_leader == edge2_name:
+                if edge_num_leader == self.edge2_name:
                     # determine if the queue length in the second intersection is less than a certain threshold, the CAV stand still to support the early lane-changing by 
                     # the ev, rather than travel at the Jordan speed.
                     leader_pos = env.k.vehicle.get_position(lead_veh_id)

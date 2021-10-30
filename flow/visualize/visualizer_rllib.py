@@ -173,6 +173,9 @@ def visualizer_rllib(args):
         rewards = defaultdict(list)
         policy_map_fn = config['multiagent']['policy_mapping_fn'].func
 
+    # collect travel time of Jordan and EV
+    
+
     # Simulate and collect metrics
     final_outflows = []
     final_inflows = []

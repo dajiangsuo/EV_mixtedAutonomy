@@ -316,7 +316,7 @@ if USE_INFLOWS:
         additional_net_params=additional_net_params)
 
 #sim_params = SumoParams(sim_step=0.1, render=True)
-sim_params = SumoParams(sim_step=1, render=True,emission_path='data')
+sim_params = SumoParams(sim_step=0.5, render=False,restart_instance=True)
 
 
 network = TrafficLightGridNetwork(

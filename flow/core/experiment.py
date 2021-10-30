@@ -64,6 +64,8 @@ class Experiment:
 
         logging.info("Initializing environment.")
 
+    # this version of run function is only for generating results (ev travel) time for the Jordan controller case
+    # For normal use comment this one and uncomment the original version below.
     def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
         """Run the given network for a set number of runs and steps per run.
 
@@ -85,6 +87,208 @@ class Experiment:
         info_dict : dict
             contains returns, average speed per step
         """
+        # raise an error if convert_to_csv is set to True but no emission
+        # file will be generated, to avoid getting an error at the end of the
+        # simulation
+        # set TEST_RUN to True only if you want to collect travel times of EV and RL 
+        TEST_RUN = True
+        
+
+        if convert_to_csv and self.env.sim_params.emission_path is None:
+            raise ValueError(
+                'The experiment was run with convert_to_csv set '
+                'to True, but no emission file will be generated. If you wish '
+                'to generate an emission file, you should set the parameter '
+                'emission_path in the simulation parameters (SumoParams or '
+                'AimsunParams) to the path of the folder where emissions '
+                'output should be generated. If you do not wish to generate '
+                'emissions, set the convert_to_csv parameter to False.')
+
+        info_dict = {}
+        if rl_actions is None:
+            def rl_actions(*_):
+                return None
+
+
+        # collecting experiment results, ret = return
+        # reward
+        overall_return_all_runs = []
+        mean_return_all_runs = []
+        per_step_return_all_runs = []
+
+        # speed
+        per_step_speed_all_runs = []
+        mean_speed_over_all_runs= []
+        std_speed_over_all_runs = []
+
+        # throughput
+        inflow_over_all_runs = []
+        outflow_over_all_runs = []
+
+        # start collecting ev and jordan travel times
+        if TEST_RUN:
+            f = open("travel_time_data.csv", "a")
+            for rl_enter in range(30,151):
+                for ev_enter in range(rl_enter+1, rl_enter+30):
+                    rl_travel_time = 0
+                    ev_travel_time = 0 
+                    state = self.env.reset()
+                    
+                    for _ in range(num_steps):
+                        vehicles = self.env.unwrapped.k.vehicle
+                        veh_ids = vehicles.get_ids()
+
+                        for id in veh_ids:
+                            if id.startswith("jordan"):
+                                rl_edge = vehicles.get_edge(id)
+                                # only measure travel time till it reaches the start of second intersection
+                                if not rl_edge.startswith(":center1"):
+                                    rl_travel_time += 0.5 # since we simulate in 0.5 steps
+                            elif id.startswith("emergency"):
+                                ev_edge = vehicles.get_edge(id)
+                                # only measure travel time till it reaches the start of second intersection
+                                if not ev_edge.startswith(":center1"):
+                                    ev_travel_time += 0.5 # since we simulate in 0.5 steps
+
+                        
+                        state, reward, done, _ = self.env.step(rl_actions(state))
+                        #state, reward, done, _ = env.step(action)
+                        
+                        
+                        if done:
+                            break
+                
+                    print("Jordan Enter: " + str(rl_enter) + " EV Enter: " + str(ev_enter) \
+                        + " Jordan Time: " + str(rl_travel_time) + " EV Time: " + str(ev_travel_time))
+                    write_string = str(rl_enter) + "," + str(ev_enter) + "," + str(rl_travel_time) + "," + str(ev_travel_time) + "\n"
+                    f.write(write_string)
+            f.close()
+            exit(0)
+        # for each run
+        for i in range(num_runs):
+            logging.info("Run #" + str(i+1))
+            state = self.env.reset()
+
+            # reward
+            overall_return_one_run = 0
+            per_step_return_one_run = []
+
+            # speed
+            per_step_speed_one_run = np.zeros(num_steps)
+
+            # for each step
+            for j in range(num_steps):
+
+                # get the states, rewards, etc
+                state, reward, done, _ = self.env.step(rl_actions(state))
+
+                # store the returns
+                overall_return_one_run += reward
+                per_step_return_one_run.append(reward)
+
+                # store the averaged speed of all vehicles at this step
+                per_step_speed_one_run[j] = np.mean(
+                    self.env.k.vehicle.get_speed(self.env.k.vehicle.get_ids()))
+
+                if done:
+                    break
+
+            # reward
+            overall_return_all_runs.append(overall_return_one_run)
+            mean_return_all_runs.append(np.mean(per_step_return_one_run))
+            per_step_return_all_runs.append(per_step_return_one_run)
+
+            # speed
+            per_step_speed_all_runs.append(per_step_speed_one_run)
+            mean_speed_over_all_runs.append(np.mean(per_step_speed_one_run))
+            std_speed_over_all_runs.append(np.std(per_step_speed_one_run))
+
+            # get the outflows and inflows for the past 500 seconds, if the simulation is less than
+            # 500 seconds then this will get all inflows (the number of vehicles entering the network)
+            # and outflows (the number of vehicles leaving the network)
+            inflow_over_all_runs.append(self.env.k.vehicle.get_inflow_rate(int(500)))
+            outflow_over_all_runs.append(self.env.k.vehicle.get_outflow_rate(int(500)))
+
+            # compute the throughput efficiency
+            if np.all(np.array(inflow_over_all_runs) > 1e-5):
+                throughput_over_all_runs = [
+                    x / y for x, y in zip(outflow_over_all_runs, inflow_over_all_runs)]
+            else:
+                throughput_over_all_runs = [0] * len(inflow_over_all_runs)
+
+        info_dict["overall_return_all_runs"] = overall_return_all_runs
+        info_dict["mean_return_all_runs"] = mean_return_all_runs
+        info_dict["per_step_return_all_runs"] = per_step_return_all_runs
+        info_dict["per_step_speed_all_runs"] = per_step_speed_all_runs
+        info_dict["mean_ret_all"] = np.mean(overall_return_all_runs)
+        info_dict["std_ret_all"] = np.std(overall_return_all_runs)
+
+        info_dict["mean_inflows"] = np.mean(inflow_over_all_runs)
+        info_dict["mean_outflows"] = np.mean(outflow_over_all_runs)
+
+        info_dict["max_spd_all"]  = np.max(mean_speed_over_all_runs)
+        info_dict["min_spd_all"]  = np.min(mean_speed_over_all_runs)
+        info_dict["mean_spd_all"] = np.mean(mean_speed_over_all_runs)
+        info_dict["std_spd_all"]  = np.std(mean_speed_over_all_runs)
+        info_dict["max_tpt_all"]  = np.max(throughput_over_all_runs)
+        info_dict["min_tpt_all"]  = np.min(throughput_over_all_runs)
+        info_dict["mean_tpt_all"] = np.mean(throughput_over_all_runs)
+        info_dict["std_tpt_all"]  = np.std(throughput_over_all_runs)
+
+
+        if output_to_terminal:
+            print("Round {0} -- Return: {1}".format(i+1, overall_return_one_run))
+            print("Return: {} (avg), {} (std)".format(
+                info_dict["mean_ret_all"], info_dict["std_ret_all"]))
+
+            print("Speed (m/s): {} (avg), {} (std)".format(
+                info_dict["mean_spd_all"], info_dict["std_spd_all"]))
+
+            print("Throughput (veh/hr): {} (avg), {} (std)".format(
+                info_dict["mean_tpt_all"], info_dict["std_tpt_all"]))
+
+        self.env.terminate()
+
+        if convert_to_csv:
+            # wait a short period of time to ensure the xml file is readable
+            time.sleep(0.1)
+
+            # collect the location of the emission file
+            dir_path = self.env.sim_params.emission_path
+            emission_filename = "{0}-emission.xml".format(self.env.network.name)
+            emission_path = os.path.join(dir_path, emission_filename)
+
+            # convert the emission file into a csv
+            emission_to_csv(emission_path)
+
+            # Delete the .xml version of the emission file.
+            os.remove(emission_path)
+
+        return info_dict
+
+
+""" Note: uncomment this for normal experiment
+    def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
+        Run the given network for a set number of runs and steps per run.
+
+        Parameters
+        ----------
+        num_runs : int
+            number of runs the experiment should perform
+        num_steps : int
+            number of steps to be performs in each run of the experiment
+        rl_actions : method, optional
+            maps states to actions to be performed by the RL agents (if
+            there are any)
+        convert_to_csv : bool
+            Specifies whether to convert the emission file created by sumo
+            into a csv file
+
+        Returns
+        -------
+        info_dict : dict
+            contains returns, average speed per step
+        
         # raise an error if convert_to_csv is set to True but no emission
         # file will be generated, to avoid getting an error at the end of the
         # simulation
@@ -219,4 +423,4 @@ class Experiment:
             os.remove(emission_path)
 
         return info_dict
-
+"""
