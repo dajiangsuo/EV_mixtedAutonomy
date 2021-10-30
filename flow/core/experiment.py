@@ -66,8 +66,9 @@ class Experiment:
 
     # this version of run function is only for generating results (ev travel) time for the Jordan controller case
     # For normal use comment this one and uncomment the original version below.
+    """
     def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
-        """Run the given network for a set number of runs and steps per run.
+        Run the given network for a set number of runs and steps per run.
 
         Parameters
         ----------
@@ -86,7 +87,7 @@ class Experiment:
         -------
         info_dict : dict
             contains returns, average speed per step
-        """
+        
         # raise an error if convert_to_csv is set to True but no emission
         # file will be generated, to avoid getting an error at the end of the
         # simulation
@@ -265,10 +266,11 @@ class Experiment:
             os.remove(emission_path)
 
         return info_dict
+        """
 
-
-""" Note: uncomment this for normal experiment
+    #Note: uncomment this for normal experiment
     def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
+        """
         Run the given network for a set number of runs and steps per run.
 
         Parameters
@@ -288,6 +290,7 @@ class Experiment:
         -------
         info_dict : dict
             contains returns, average speed per step
+        """
         
         # raise an error if convert_to_csv is set to True but no emission
         # file will be generated, to avoid getting an error at the end of the
@@ -423,4 +426,4 @@ class Experiment:
             os.remove(emission_path)
 
         return info_dict
-"""
+

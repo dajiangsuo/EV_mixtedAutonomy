@@ -148,7 +148,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=FLOW_RATE,
         departLane= 1, #"free",
         departSpeed=V_ENTER,
-        begin=130,
+        begin=30,
         number = 1,
         name = 'jordan')
     
@@ -159,7 +159,7 @@ def get_inflow_params(col_num, row_num, additional_net_params):
         vehs_per_hour=FLOW_RATE,
         departLane= 0, #"free",
         departSpeed=V_MAX_EV,
-        begin=155,
+        begin=40,
         number = 1,
         name = 'emergency')
         #color = 'green')
@@ -316,7 +316,7 @@ if USE_INFLOWS:
         additional_net_params=additional_net_params)
 
 #sim_params = SumoParams(sim_step=0.1, render=True)
-sim_params = SumoParams(sim_step=0.5, render=False,restart_instance=True)
+sim_params = SumoParams(sim_step=0.5, render=True,emission_path='data',restart_instance=False)
 
 
 network = TrafficLightGridNetwork(

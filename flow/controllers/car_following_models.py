@@ -620,6 +620,7 @@ class JordanController(BaseController):
         ev_lane = env.k.vehicle.get_lane(ev_id)
 
         if self.Jordan_stop_flag == True:
+            print("CAV stop due to Jordan stop flag")
             if ev_lane ==1:
                 self.Jordan_stop_flag = False
             return (0-v)/env.sim_step
@@ -702,7 +703,7 @@ class JordanControllerMulti(BaseController):
                  noise=0,
                  fail_safe=None,
                  car_following_params=None,
-                 w=15,
+                 w=10,
                  v_ev=30,
                  v_N=15,
                  edge1_name = 'right0_0',
@@ -979,12 +980,14 @@ class JordanControllerMulti(BaseController):
         ev_pos =  env.k.vehicle.get_position(ev_id)
 
         if self.Jordan_stop_flag == True:
+            print("CAV stop due to Jordan stop flag")
             if ev_lane ==1:
                 self.Jordan_stop_flag = False
                 return (v_desired-v)/env.sim_step
             return (0-v)/env.sim_step
 
         if self.Jordan_accel_flag == True:
+            print("CAV accel under Jordan conditions")
             if ev_lane == 1:
                 self.Jordan_accel_flag = False
                 return (v_desired-v)/env.sim_step
@@ -994,7 +997,7 @@ class JordanControllerMulti(BaseController):
         # note: if the goal of the CAV is to assist the EV to cross two intersections, how will this influence its acceleration strategies?
 
 
-        if abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right0_0' and edge_num_rl == 'right0_0':
+        if abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == self.edge1_name and edge_num_rl == self.edge1_name:
             print("meet Jordan conditions near the 1st intersection")
             d = self.edge1_len - ev_pos # ev_from_intersection, note that the length of the road segment now is set to 300
             pos_edge = env.k.vehicle.get_position(self.veh_id)
@@ -1011,6 +1014,7 @@ class JordanControllerMulti(BaseController):
 
             # I need to consider two scenarios where x_L > 0 and x_L < 0
             if x_L < 0: # optimal splitting point is at the position downstream of the first intersection
+                print("x_L minus conditions")
                 # if CAV is the first vehicle in the queue
                 lead_veh_id = env.k.vehicle.get_leader(self.veh_id)
                 edge_num_leader = env.k.vehicle.get_edge(lead_veh_id)
@@ -1030,8 +1034,12 @@ class JordanControllerMulti(BaseController):
                         t_s = d/self.w + (d-x_L)/self.v_ev
                         self.Jordan_accel_speed = (x_a-x_L)/(t_s-t_a)
                         return (self.Jordan_accel_speed - v)/env.sim_step
+                else:
+                    self.Jordan_stop_flag = True
+                    return (0-v)/env.sim_step
 
             else:
+                print("x_L plus conditions")
                 if x_a <= x_L:
                     print("Jordan: vehicle stop")
                     self.Jordan_stop_flag = True
@@ -1047,7 +1055,7 @@ class JordanControllerMulti(BaseController):
                     return (spd_jordan - v)/env.sim_step
 
 
-        elif abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == 'right1_0' and edge_num_rl == 'right1_0':
+        elif abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == self.edge2_name and edge_num_rl == self.edge2_name:
             print("meet Jordan conditions near the 2nd intersection")
             ev_pos =  env.k.vehicle.get_position(ev_id)
             d = self.edge2_len - ev_pos # ev_from_inter
@@ -1077,6 +1085,7 @@ class JordanControllerMulti(BaseController):
         # Ans: if the queue length in the second road segment is at another one 
         elif abs(v) < 0.5 and abs(ev_spd) < 0.5 and edge_num_ev == self.edge1_name and edge_num_rl == self.edge2_name:
             # if av locates in a position that allows queue discharge before ev reaches the stop line of the second intersection, av should travel as usual
+            print("meet Jordan conditions: ev near 1st while av near the 2nd intersection")
             follower_veh_id = env.k.vehicle.get_follower(self.veh_id)
             edge_num_follower = env.k.vehicle.get_edge(follower_veh_id)
             av_pos = env.k.vehicle.get_position(self.veh_id)
