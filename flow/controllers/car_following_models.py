@@ -1032,7 +1032,8 @@ class JordanControllerMulti(BaseController):
                         self.Jordan_accel_flag = True
                         t_a = x_a/self.w
                         t_s = d/self.w + (d-x_L)/self.v_ev
-                        self.Jordan_accel_speed = (x_a-x_L)/(t_s-t_a)
+                        self.Jordan_accel_
+                        speed = (x_a-x_L)/(t_s-t_a)
                         return (self.Jordan_accel_speed - v)/env.sim_step
                 else:
                     self.Jordan_stop_flag = True
