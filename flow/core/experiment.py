@@ -270,9 +270,9 @@ class Experiment:
         """
 
     #Note: uncomment this for normal experiment
-    
+    """
     def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
-        """
+        
         Run the given network for a set number of runs and steps per run.
 
         Parameters
@@ -292,7 +292,7 @@ class Experiment:
         -------
         info_dict : dict
             contains returns, average speed per step
-        """
+        
         
         # raise an error if convert_to_csv is set to True but no emission
         # file will be generated, to avoid getting an error at the end of the
@@ -428,9 +428,9 @@ class Experiment:
             os.remove(emission_path)
 
         return info_dict
-    
-
     """
+
+    
     def run(self, num_runs, num_steps, rl_actions=None, output_to_terminal=True, convert_to_csv=False):
         
         
@@ -484,6 +484,11 @@ class Experiment:
                 rl_enter = randint(37,112)
                 ev_enter = rl_enter + randint(1,30)
 
+                # newly added
+                did_tl_green_start = False
+                did_ev_stop = False
+
+
                 rl_travel_time = 0
                 ev_travel_time = 0
 
@@ -500,7 +505,27 @@ class Experiment:
                     
                 for _ in range(num_steps):
                     vehicles = self.env.unwrapped.k.vehicle
+                    traffic_lights = self.env.unwrapped.k.traffic_light
                     veh_ids = vehicles.get_ids()
+
+                    # newly added
+                    current_phase_center0 = traffic_lights.get_phase("center0")
+
+                    ems_id = ""
+                    for id in veh_ids:
+                        if id.startswith("emergency"):
+                            ems_id = id
+                            break
+
+                    ev_speed = vehicles.get_speed(ems_id)
+                    if ev_speed != -1001 and ev_speed < 0.1 and not did_ev_stop:
+                        did_ev_stop = True
+
+                    if ev_speed != -1001 and did_ev_stop and not did_tl_green_start:
+                        if current_phase_center0 == 0:
+                            did_tl_green_start = True
+
+
 
                     for id in veh_ids:
                         if id.startswith("jordan"):
@@ -540,7 +565,7 @@ class Experiment:
                                                 rl_two = 1
                                                 
                         # only measure travel time till it reaches the start of second intersection
-                            if not rl_edge.startswith(":center1"):
+                            if not rl_edge.startswith(":center1") and not rl_edge.startswith("right2_0") and did_tl_green_start:
                                 rl_travel_time += 0.5 # since we simulate in 0.5 steps
                             
 
@@ -583,7 +608,7 @@ class Experiment:
                                                 ev_two = 1
 
                             # only measure travel time till it reaches the start of second intersection
-                            if not ev_edge.startswith(":center1"):
+                            if not ev_edge.startswith(":center1") and not ev_edge.startswith("right2_0") and did_tl_green_start:
                                 ev_travel_time += 0.5 # since we simulate in 0.5 steps
                                 
 
@@ -739,4 +764,4 @@ class Experiment:
             # Delete the .xml version of the emission file.
             os.remove(emission_path)
 
-        return info_dict"""
+        return info_dict

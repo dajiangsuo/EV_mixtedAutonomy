@@ -457,13 +457,24 @@ class IDMController(BaseController):
             delay=time_delay,
             fail_safe=fail_safe,
             noise=noise)
-        self.v0 = v0
-        self.T = T
-        self.a = a
-        self.b = b
-        self.delta = delta
-        self.s0 = s0
-        self.dt = dt
+
+        ENABLE_DIFFERENT_HUMAN_DRIVERS = False
+        if ENABLE_DIFFERENT_HUMAN_DRIVERS:
+            self.v0 = np.random.normal(v0, 5)
+            self.T = np.random.normal(T, 0.25)
+            self.a = np.random.normal(a, 0.3)
+            self.b = np.random.normal(b, 0.3)
+            self.delta = delta
+            self.s0 = np.random.normal(s0, 0.2)
+            self.dt = dt
+        else:
+            self.v0 = v0
+            self.T = T
+            self.a = a
+            self.b = b
+            self.delta = delta
+            self.s0 = s0
+            self.dt = dt
 
     def get_accel(self, env):
         """See parent class."""
