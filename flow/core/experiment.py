@@ -438,8 +438,7 @@ class Experiment:
         # file will be generated, to avoid getting an error at the end of the
         # simulation
         # set TEST_RUN to True only if you want to collect travel times of EV and RL 
-        TEST_RUN = True
-        
+        TEST_RUN = False
 
         if convert_to_csv and self.env.sim_params.emission_path is None:
             raise ValueError(
@@ -455,7 +454,6 @@ class Experiment:
         if rl_actions is None:
             def rl_actions(*_):
                 return None
-
 
         # collecting experiment results, ret = return
         # reward
@@ -477,10 +475,11 @@ class Experiment:
             f11 = open("one-one.csv", "a")
             f22 = open("two-two.csv", "a")
             f21 = open("two-one.csv", "a")
-            rl_one_ev_one_queues = []
-            rl_two_ev_one_queues = []
-            rl_two_ev_two_queues = []
-            for ev_enter in range(1000):
+            rl_one_ev_one_queues = {}
+            rl_two_ev_one_queues = {}
+            rl_two_ev_two_queues = {}
+            for i in range(1000):
+                print(f"Iteration: {i}")
                 rl_enter = randint(37,112)
                 ev_enter = rl_enter + randint(1,30)
 
@@ -488,12 +487,11 @@ class Experiment:
                 did_tl_green_start = False
                 did_ev_stop = False
 
-
                 rl_travel_time = 0
                 ev_travel_time = 0
 
-                rl_queue_length = -1
-                ev_queue_length = -1
+                rl_queue_length = 0
+                ev_queue_length = 0
 
                 rl_one = 0
                 rl_two = 0
@@ -501,7 +499,6 @@ class Experiment:
                 ev_two = 0
 
                 state = self.env.reset(TEST_RUN, ev_enter, rl_enter)
-                #state = env.reset(TEST_RUN, ev_enter, rl_enter)
                     
                 for _ in range(num_steps):
                     vehicles = self.env.unwrapped.k.vehicle
@@ -525,8 +522,6 @@ class Experiment:
                         if current_phase_center0 == 0:
                             did_tl_green_start = True
 
-
-
                     for id in veh_ids:
                         if id.startswith("jordan"):
                             rl_edge = vehicles.get_edge(id)
@@ -537,6 +532,7 @@ class Experiment:
                             rl_lead_edge = vehicles.get_edge(rl_lead)
                             rl_lead_lane = vehicles.get_lane(rl_lead)
                             rl_lead_edge_lane = rl_lead_edge + "_" + str(rl_lead_lane)
+                            rl_pos = vehicles.get_position(id)                        
 
                             if rl_edge_lane == "right0_0_1":
                                 if rl_lead_edge_lane != "right0_0_1" and rl_speed < 0.3 and not rl_one:
@@ -546,8 +542,9 @@ class Experiment:
                                 elif rl_lead_edge_lane == "right0_0_1" and rl_speed < 0.3 and not rl_one:
                                     if not rl_one:
                                         for sub_id in veh_ids:
-                                            if vehicles.get_edge(sub_id) == "right0_0" and vehicles.get_lane(sub_id) == 1 and  vehicles.get_speed(sub_id) < 0.3:
-                                            # rl vehicle is not the first in the queue of the first intersection
+                                            sub_pos = vehicles.get_position(sub_id)
+                                            if vehicles.get_edge(sub_id) == "right0_0" and vehicles.get_lane(sub_id) == 1 and sub_pos > rl_pos:
+                                                # rl vehicle is not the first in the queue of the first intersection
                                                 rl_queue_length += 1
                                                 rl_one = 1
                             elif rl_edge_lane == "right1_0_1":
@@ -555,20 +552,19 @@ class Experiment:
                                     # rl vehicle is the first in the queue of the second intersection
                                     rl_queue_length = 0
                                     rl_two = 1
-                                    
+
                                 elif rl_lead_edge_lane == "right1_0_1" and rl_speed < 0.3:
                                     if not rl_two:
                                         for sub_id in veh_ids:
-                                            if vehicles.get_edge(sub_id) == "right1_0" and vehicles.get_lane(sub_id) == 1 and vehicles.get_speed(sub_id) < 0.3:
-                                            # rl vehicle is not the first in the queue of the second intersection
+                                            sub_pos = vehicles.get_position(sub_id)
+                                            if vehicles.get_edge(sub_id) == "right1_0" and vehicles.get_lane(sub_id) == 1 and sub_pos > rl_pos:
+                                                # rl vehicle is not the first in the queue of the second intersection
                                                 rl_queue_length += 1
                                                 rl_two = 1
                                                 
-                        # only measure travel time till it reaches the start of second intersection
+                            # only measure travel time till it reaches the start of second intersection
                             if not rl_edge.startswith(":center1") and not rl_edge.startswith("right2_0") and did_tl_green_start:
                                 rl_travel_time += 0.5 # since we simulate in 0.5 steps
-                            
-
 
                         elif id.startswith("emergency"):
                             ev_edge = vehicles.get_edge(id)
@@ -579,6 +575,7 @@ class Experiment:
                             ev_lead_edge = vehicles.get_edge(ev_lead)
                             ev_lead_lane = vehicles.get_lane(ev_lead)
                             ev_lead_edge_lane = ev_lead_edge + "_" + str(ev_lead_lane)
+                            ev_pos = vehicles.get_position(id)
 
                             if ev_edge_lane == "right0_0_0":
                                 if ev_lead_edge_lane != "right0_0_0" and ev_speed < 0.3 and not ev_one:
@@ -589,11 +586,12 @@ class Experiment:
                                 elif ev_lead_edge_lane == "right0_0_0" and ev_speed < 0.3:
                                     if not ev_one:
                                         for sub_id in veh_ids:
-                                            if vehicles.get_edge(sub_id) == "right0_0" and vehicles.get_lane(sub_id) == 0 and vehicles.get_speed(sub_id) < 0.3:
+                                            sub_pos = vehicles.get_position(sub_id)
+                                            if vehicles.get_edge(sub_id) == "right0_0" and vehicles.get_lane(sub_id) == 0 and sub_pos > ev_pos:
                                                 # rl vehicle is not the first in the queue of the first intersection
                                                 ev_queue_length += 1
                                                 ev_one = 1
-
+                        
                             elif ev_edge_lane == "right1_0_0":
                                 if ev_lead_edge_lane != "right1_0_0" and ev_speed < 0.3 and not ev_two:
                                     # rl vehicle is the first in the queue of the second intersection
@@ -602,20 +600,18 @@ class Experiment:
                                 elif ev_lead_edge_lane == "right1_0_0" and ev_speed < 0.3:
                                     if not ev_two:
                                         for sub_id in veh_ids:
-                                            if vehicles.get_edge(sub_id) == "right1_0" and vehicles.get_lane(sub_id) == 0 and vehicles.get_speed(sub_id) < 0.3:
+                                            sub_pos = vehicles.get_position(sub_id)
+                                            if vehicles.get_edge(sub_id) == "right1_0" and vehicles.get_lane(sub_id) == 0 and sub_pos > ev_pos:
                                                 # rl vehicle is not the first in the queue of the second intersection
                                                 ev_queue_length += 1
                                                 ev_two = 1
-
+                            
                             # only measure travel time till it reaches the start of second intersection
                             if not ev_edge.startswith(":center1") and not ev_edge.startswith("right2_0") and did_tl_green_start:
                                 ev_travel_time += 0.5 # since we simulate in 0.5 steps
                                 
-
-                        
                     state, reward, done, _ = self.env.step(rl_actions(state))
                     #state, reward, done, _ = env.step(action)
-                        
                         
                     if done:
                         break
@@ -623,9 +619,11 @@ class Experiment:
                 if (rl_one or rl_two) and (ev_one or ev_two):
                     if rl_one and ev_one:
                         if (rl_queue_length,ev_queue_length) not in rl_one_ev_one_queues:
-                            rl_one_ev_one_queues.append((rl_queue_length,ev_queue_length))
-                            print(rl_one_ev_one_queues)
-                            print("rl_one_ev_one_queues: " + str(len(rl_one_ev_one_queues)))
+                            if (rl_queue_length,ev_queue_length) in rl_one_ev_one_queues:
+                                rl_one_ev_one_queues[(rl_queue_length,ev_queue_length)].append((rl_travel_time, ev_travel_time))
+                            else:
+                                rl_one_ev_one_queues[(rl_queue_length,ev_queue_length)] = [(rl_travel_time, ev_travel_time)]
+                            print("rl_one_ev_one_queues: " + str((rl_one_ev_one_queues)))
                             print("RL Enter: " + str(rl_enter) + " EV Enter: " + str(ev_enter) + " RL queue: " + str(rl_queue_length) + " EV queue: " + str(ev_queue_length) \
                             + " RL one: " + str(rl_one) + " RL two: " + str(rl_two) + " EV one: " + str(ev_one)  + " EV two: " + str(ev_two)\
                             +   " RL Time: " + str(rl_travel_time) + " EV Time: " + str(ev_travel_time))
@@ -635,9 +633,11 @@ class Experiment:
 
                     elif rl_two and ev_two:
                         if (rl_queue_length,ev_queue_length) not in rl_two_ev_two_queues:
-                            rl_two_ev_two_queues.append((rl_queue_length,ev_queue_length))
-                            print(rl_two_ev_two_queues)
-                            print("rl_two_ev_two_queues: " + str(len(rl_two_ev_two_queues)))
+                            if (rl_queue_length,ev_queue_length) in rl_two_ev_two_queues:
+                                rl_two_ev_two_queues[(rl_queue_length,ev_queue_length)].append((rl_travel_time, ev_travel_time))
+                            else:
+                                rl_two_ev_two_queues[(rl_queue_length,ev_queue_length)] = [(rl_travel_time, ev_travel_time)]
+                            print("rl_two_ev_two_queues: " + str((rl_two_ev_two_queues)))
                             print("RL Enter: " + str(rl_enter) + " EV Enter: " + str(ev_enter) + " RL queue: " + str(rl_queue_length) + " EV queue: " + str(ev_queue_length) \
                             + " RL one: " + str(rl_one) + " RL two: " + str(rl_two) + " EV one: " + str(ev_one)  + " EV two: " + str(ev_two)\
                             +   " RL Time: " + str(rl_travel_time) + " EV Time: " + str(ev_travel_time))
@@ -647,18 +647,17 @@ class Experiment:
 
                     elif rl_two and ev_one:
                         if (rl_queue_length,ev_queue_length) not in rl_two_ev_one_queues:
-                            rl_two_ev_one_queues.append((rl_queue_length,ev_queue_length))
-                            print(rl_two_ev_one_queues)
-                            print("rl_two_ev_one_queues: " + str(len(rl_two_ev_one_queues)))
+                            if (rl_queue_length,ev_queue_length) in rl_two_ev_one_queues:
+                                rl_two_ev_one_queues[(rl_queue_length,ev_queue_length)].append((rl_travel_time, ev_travel_time))
+                            else:
+                                rl_two_ev_one_queues[(rl_queue_length,ev_queue_length)] = [(rl_travel_time, ev_travel_time)]
+                            print("rl_two_ev_one_queues: " + str((rl_two_ev_one_queues)))
                             print("RL Enter: " + str(rl_enter) + " EV Enter: " + str(ev_enter) + " RL queue: " + str(rl_queue_length) + " EV queue: " + str(ev_queue_length) \
                             + " RL one: " + str(rl_one) + " RL two: " + str(rl_two) + " EV one: " + str(ev_one)  + " EV two: " + str(ev_two)\
                             +   " RL Time: " + str(rl_travel_time) + " EV Time: " + str(ev_travel_time))
                             write_string = str(rl_enter) + "," + str(ev_enter) + "," + str(rl_queue_length) + "," + str(ev_queue_length) + "," + str(rl_one) + "," + str(rl_two) + "," \
                             + str(ev_one) + "," + str(ev_two) + "," + str(rl_travel_time) + "," + str(ev_travel_time) + "\n"
                             f21.write(write_string)
-
-
-
             f11.close()
             f22.close()
             f21.close()
@@ -667,7 +666,7 @@ class Experiment:
         # for each run
         for i in range(num_runs):
             logging.info("Run #" + str(i+1))
-            state = self.env.reset()
+            state = self.env.reset(TEST_RUN, 0, 0)
 
             # reward
             overall_return_one_run = 0
